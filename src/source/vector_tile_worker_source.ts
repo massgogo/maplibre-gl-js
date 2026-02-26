@@ -8,6 +8,7 @@ import {extend} from '../util/util';
 import {RequestPerformance} from '../util/performance';
 import {VectorTileOverzoomed, sliceVectorTileLayer, toVirtualVectorTile} from './vector_tile_overzoomed';
 import {MLTVectorTile} from './vector_tile_mlt';
+import {WasmVectorTile, initWasmDecoder, isWasmReady} from './vector_tile_wasm';
 import type {
     WorkerSource,
     WorkerTileParameters,
@@ -44,13 +45,21 @@ export class VectorTileWorkerSource implements WorkerSource {
     }
 
     /**
-     * Loads a vector tile
+     * Loads a vector tile.
+     *
+     * Uses WASM decoder (planetiler-wasm) when available, otherwise falls back
+     * to the JS decoder (@mapbox/vector-tile + pbf).
      */
     loadVectorTile(params: WorkerTileParameters, rawData: ArrayBuffer): LoadVectorTileResult {
         try {
-            const vectorTile = params.encoding !== 'mlt'
-                ? new VectorTile(new Protobuf(rawData))
-                : new MLTVectorTile(rawData);
+            let vectorTile: VectorTileLike;
+            if (params.encoding === 'mlt') {
+                vectorTile = new MLTVectorTile(rawData);
+            } else if (isWasmReady()) {
+                vectorTile = new WasmVectorTile(rawData);
+            } else {
+                vectorTile = new VectorTile(new Protobuf(rawData));
+            }
 
             return {vectorTile, rawData};
         } catch (ex) {

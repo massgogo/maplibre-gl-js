@@ -6,6 +6,7 @@ import {rtlWorkerPlugin, type RTLTextPlugin} from './rtl_text_plugin_worker';
 import {GeoJSONWorkerSource, type LoadGeoJSONParameters} from './geojson_worker_source';
 import {isWorker} from '../util/util';
 import {addProtocol, removeProtocol} from './protocol_crud';
+import {initWasmDecoder} from './vector_tile_wasm';
 import {type PluginState} from './rtl_text_plugin_status';
 import type {
     WorkerSource,
@@ -289,4 +290,10 @@ export default class Worker {
 
 if (isWorker(self)) {
     self.worker = new Worker(self);
+
+    // Try to initialize WASM MVT decoder. Falls back to JS decoder if unavailable.
+    const origin = (self as any).location?.origin || '';
+    initWasmDecoder(`${origin}/wasm`).catch(() => {
+        // WASM not available — JS fallback will be used silently
+    });
 }
