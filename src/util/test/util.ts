@@ -9,7 +9,7 @@ import {MercatorTransform} from '../../geo/projection/mercator_transform';
 import {RequestManager} from '../request_manager';
 import {type IReadonlyTransform, type ITransform} from '../../geo/transform_interface';
 import {type Style} from '../../style/style';
-import {type Terrain} from '../../render/terrain';
+
 import {Frustum} from '../primitives/frustum';
 import {mat4} from 'gl-matrix';
 
@@ -224,7 +224,7 @@ export function expectToBeCloseToArray(actual: Array<number>, expected: Array<nu
     }
 }
 
-export function createTerrain(): Terrain {
+export function createTerrain(): any {
     return {
         pointCoordinate: () => null,
         getElevationForLngLatZoom: () => 1000,
@@ -238,7 +238,7 @@ export function createTerrain(): Terrain {
             getRenderableTiles: () => [],
             anyTilesAfterTime: () => false
         }
-    } as any as Terrain;
+    } as any;
 }
 
 export function createFramebuffer() {

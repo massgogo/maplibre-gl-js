@@ -1,15 +1,9 @@
 import packageJSON from '../package.json' with {type: 'json'};
 import {Map, type MapOptions, type WebGLContextAttributesWithType} from './ui/map';
 import {NavigationControl, type NavigationControlOptions} from './ui/control/navigation_control';
-import {GeolocateControl, type GeolocateControlOptions} from './ui/control/geolocate_control';
 import {AttributionControl, type AttributionControlOptions} from './ui/control/attribution_control';
 import {LogoControl, type LogoControlOptions} from './ui/control/logo_control';
-import {ScaleControl, type ScaleControlOptions, type Unit} from './ui/control/scale_control';
-import {FullscreenControl, type FullscreenControlOptions} from './ui/control/fullscreen_control';
-import {TerrainControl} from './ui/control/terrain_control';
-import {GlobeControl} from './ui/control/globe_control';
 import {type Offset, Popup, type PopupOptions} from './ui/popup';
-import {type Alignment, Marker, type MarkerOptions} from './ui/marker';
 import {type AddLayerObject, type FeatureIdentifier, Style, type StyleOptions, type StyleSetterOptions, type StyleSwapOptions, type TransformStyleFunction} from './style/style';
 import {LngLat, type LngLatLike} from './geo/lng_lat';
 import {LngLatBounds, type LngLatBoundsLike} from './geo/lng_lat_bounds';
@@ -22,13 +16,7 @@ import {now, setNow, restoreNow, isTimeFrozen} from './util/time_control';
 import {WorkerPool} from './util/worker_pool';
 import {prewarm, clearPrewarmedResources} from './util/global_worker_pool';
 import {AJAXError, type ExpiryData, type GetResourceResponse, type RequestParameters} from './util/ajax';
-import {GeoJSONSource, type SetClusterOptions} from './source/geojson_source';
-import {CanvasSource, type CanvasSourceSpecification} from './source/canvas_source';
-import {type CanonicalTileRange, type Coordinates, ImageSource, type UpdateImageOptions} from './source/image_source';
-import {RasterDEMTileSource} from './source/raster_dem_tile_source';
-import {RasterTileSource} from './source/raster_tile_source';
 import {VectorTileSource, type LoadTileResult} from './source/vector_tile_source';
-import {VideoSource} from './source/video_source';
 import {type Source, type SourceClass, addSourceType} from './source/source';
 import {addProtocol, removeProtocol} from './source/protocol_crud';
 import {type Dispatcher, getGlobalDispatcher} from './util/dispatcher';
@@ -47,7 +35,6 @@ import {TwoFingersTouchPitchHandler, TwoFingersTouchRotateHandler, TwoFingersTou
 import {MessageType, type ActorMessage, type RequestResponseMessageMap} from './util/actor_messages';
 import {createTileMesh, type CreateTileMeshOptions, type IndicesType, type TileMesh} from './util/create_tile_mesh';
 import type {ControlPosition, IControl} from './ui/control/control';
-import type {CustomRenderMethod, CustomLayerInterface, CustomRenderMethodInput} from './style/style_layer/custom_style_layer';
 import type {AnimationOptions, CameraForBoundsOptions, CameraOptions, CameraUpdateTransformFunction, CenterZoomBearing, EaseToOptions, FitBoundsOptions, FlyToOptions, JumpToOptions, PointLike} from './ui/camera';
 import type {DistributiveKeys, DistributiveOmit, GeoJSONFeature, MapGeoJSONFeature} from './util/vectortile_to_geojson';
 import type {Handler, HandlerResult} from './ui/handler_manager';
@@ -57,7 +44,6 @@ import type {TransformConstrainFunction} from './geo/transform_interface';
 import type {StyleImage, StyleImageData, StyleImageInterface, StyleImageMetadata, TextFit} from './style/style_image';
 import type {StyleLayer} from './style/style_layer';
 import type {Tile} from './tile/tile';
-import type {GeoJSONFeatureDiff, GeoJSONFeatureId, GeoJSONSourceDiff} from './source/geojson_source_diff';
 import type {QueryRenderedFeaturesOptions, QuerySourceFeatureOptions} from './source/query_features';
 import type {RequestTransformFunction, ResourceType} from './util/request_manager';
 import {EXTENT} from './data/extent';
@@ -203,16 +189,10 @@ export {
     Map,
     Map as MapLibreMap,
     NavigationControl,
-    GeolocateControl,
     AttributionControl,
     LogoControl,
-    ScaleControl,
-    FullscreenControl,
-    TerrainControl,
-    GlobeControl,
     Hash,
     Popup,
-    Marker,
     Style,
     LngLat,
     LngLatBounds,
@@ -222,14 +202,8 @@ export {
     Event,
     AJAXError,
     config,
-    CanvasSource,
-    GeoJSONSource,
-    ImageSource,
-    RasterDEMTileSource,
-    RasterTileSource,
     VectorTileSource,
     LoadTileResult,
-    VideoSource,
     EdgeInsets,
     BoxZoomHandler,
     DragRotateHandler,
@@ -249,7 +223,6 @@ export {
     type RequireAtLeastOne,
     type CameraUpdateTransformFunction,
     type TransformConstrainFunction,
-    type CustomRenderMethod,
     type CalculateTileZoomFunction,
     type MapSourceDataType,
     type TileMesh,
@@ -265,22 +238,13 @@ export {
     type StyleLayer,
     type GetResourceResponse,
     type MapGeoJSONFeature,
-    type Alignment,
     type AddProtocolAction,
     type SourceClass,
     type IndicesType,
     type AttributionControlOptions,
-    type CanonicalTileRange,
     type Tile,
     type Listener,
-    type Coordinates,
-    type UpdateImageOptions,
     type DragPanOptions,
-    type FullscreenControlOptions,
-    type SetClusterOptions,
-    type GeoJSONSourceDiff,
-    type GeolocateControlOptions,
-    type LogoControlOptions,
     type StyleImageInterface,
     type AddLayerObject,
     type StyleSetterOptions,
@@ -296,23 +260,17 @@ export {
     type StyleSwapOptions,
     type StyleOptions,
     type RequestTransformFunction,
-    type MarkerOptions,
     type NavigationControlOptions,
     type PopupOptions,
     type Offset,
     type OverscaledTileID,
-    type ScaleControlOptions,
-    type Unit,
     type AroundCenterOptions,
     type BoxZoomEndHandler,
     type BoxZoomHandlerOptions,
     type HandlerResult,
-    type CustomRenderMethodInput,
     type ExpiryData,
     type PositionAnchor,
     type ProjectionData,
-    type GeoJSONFeatureId,
-    type GeoJSONFeatureDiff,
     type TextFit,
     type TransformStyleFunction,
     type DistributiveOmit,
@@ -338,8 +296,6 @@ export {
     type GestureOptions,
     type WebGLContextAttributesWithType,
     type IControl,
-    type CustomLayerInterface,
-    type CanvasSourceSpecification,
     type PaddingOptions,
     type LngLatLike,
     type PointLike,

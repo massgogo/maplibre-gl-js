@@ -4,7 +4,7 @@ import {MercatorCoordinate} from '../mercator_coordinate';
 import {degreesToRadians, scaleZoom} from '../../util/util';
 
 import type {IReadonlyTransform} from '../transform_interface';
-import type {Terrain} from '../../render/terrain';
+
 import type {Frustum} from '../../util/primitives/frustum';
 import {maxMercatorHorizonAngle} from './mercator_utils';
 import {type IBoundingVolume, IntersectionResult} from '../../util/primitives/bounding_volume';
@@ -53,7 +53,7 @@ export type CoveringTilesOptionsInternal = CoveringTilesOptions & {
     /**
      * When terrain is present, tile visibility will be computed in regards to the min and max elevations for each tile.
      */
-    terrain?: Terrain;
+    terrain?: any;
     /**
      * Optional function to redefine how tiles are loaded at high pitch angles.
      */

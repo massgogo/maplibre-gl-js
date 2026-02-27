@@ -5,7 +5,7 @@ import type {StyleLayer} from './style_layer';
 import type {SymbolStyleLayer} from './style_layer/symbol_style_layer';
 import type {Tile} from '../tile/tile';
 import type {BucketPart} from '../symbol/placement';
-import type {Terrain} from '../render/terrain';
+
 
 class LayerPlacement {
     _sortAcrossTiles: boolean;
@@ -68,7 +68,7 @@ export class PauseablePlacement {
 
     constructor(
         transform: ITransform,
-        terrain: Terrain,
+        terrain: any,
         order: Array<string>,
         forceFullPlacement: boolean,
         showCollisionBoxes: boolean,

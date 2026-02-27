@@ -1,9 +1,9 @@
 import {describe, expect, test} from 'vitest';
-import {GlobeCoveringTilesDetailsProvider} from '../../geo/projection/globe_covering_tiles_details_provider';
+import {MercatorCoveringTilesDetailsProvider} from '../../geo/projection/mercator_covering_tiles_details_provider';
 
 describe('bounding volume cache', () => {
     test('retains bounding volumes from last frame', () => {
-        const detailsProvider = new GlobeCoveringTilesDetailsProvider();
+        const detailsProvider = new MercatorCoveringTilesDetailsProvider();
         const box1a = detailsProvider.getTileBoundingVolume({
             x: 0,
             y: 0,
@@ -19,7 +19,7 @@ describe('bounding volume cache', () => {
     });
 
     test('clears no longer used bounding volumes', () => {
-        const detailsProvider = new GlobeCoveringTilesDetailsProvider();
+        const detailsProvider = new MercatorCoveringTilesDetailsProvider();
         // Get 1+2+3
         const box1a = detailsProvider.getTileBoundingVolume({
             x: 0,
@@ -85,7 +85,7 @@ describe('bounding volume cache', () => {
     });
 
     test('does not clear cache if no new box was added', () => {
-        const detailsProvider = new GlobeCoveringTilesDetailsProvider();
+        const detailsProvider = new MercatorCoveringTilesDetailsProvider();
         // Get 1+2+3
         const box1a = detailsProvider.getTileBoundingVolume({
             x: 0,

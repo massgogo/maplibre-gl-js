@@ -8,7 +8,7 @@ import Point from '@mapbox/point-geometry';
 import {Event, Evented} from '../util/evented';
 import {MercatorCoordinate} from '../geo/mercator_coordinate';
 
-import type {Terrain} from '../render/terrain';
+
 import type {ITransform} from '../geo/transform_interface';
 import type {LngLatLike} from '../geo/lng_lat';
 import type {LngLatBoundsLike} from '../geo/lng_lat_bounds';
@@ -256,7 +256,7 @@ export type CameraUpdateTransformFunction =  (next: {
 export abstract class Camera extends Evented {
     transform: ITransform;
     cameraHelper: ICameraHelper;
-    terrain: Terrain;
+    terrain: any;
     handlers: HandlerManager;
 
     _moving: boolean;

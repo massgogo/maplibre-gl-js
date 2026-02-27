@@ -19,7 +19,6 @@ import type {
     PopulateParameters
 } from '../bucket';
 import type {CircleStyleLayer} from '../../style/style_layer/circle_style_layer';
-import type {HeatmapStyleLayer} from '../../style/style_layer/heatmap_style_layer';
 import type {Context} from '../../gl/context';
 import type {IndexBuffer} from '../../gl/index_buffer';
 import type {VertexBuffer} from '../../gl/vertex_buffer';
@@ -46,7 +45,7 @@ function addCircleVertex(layoutVertexArray, x, y, extrudeX, extrudeY) {
  * Each corner has a pos that is the center of the circle and an extrusion
  * vector that is where it points.
  */
-export class CircleBucket<Layer extends CircleStyleLayer | HeatmapStyleLayer> implements Bucket {
+export class CircleBucket<Layer extends CircleStyleLayer> implements Bucket {
     index: number;
     zoom: number;
     overscaling: number;

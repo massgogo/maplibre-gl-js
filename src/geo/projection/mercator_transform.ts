@@ -13,7 +13,7 @@ import {TransformHelper} from '../transform_helper';
 import {MercatorCoveringTilesDetailsProvider} from './mercator_covering_tiles_details_provider';
 import {Frustum} from '../../util/primitives/frustum';
 
-import type {Terrain} from '../../render/terrain';
+
 import type {IReadonlyTransform, ITransform, TransformConstrainFunction} from '../transform_interface';
 import type {TransformOptions} from '../transform_helper';
 import type {PaddingOptions} from '../edge_insets';
@@ -300,7 +300,7 @@ export class MercatorTransform implements ITransform {
         return this._coveringTilesDetailsProvider;
     }
 
-    recalculateZoomAndCenter(terrain?: Terrain): void {
+    recalculateZoomAndCenter(terrain?: any): void {
         // find position the camera is looking on
         const center = this.screenPointToLocation(this.centerPoint, terrain);
         const elevation = terrain ? terrain.getElevationForLngLatZoom(center, this._helper._tileZoom) : 0;
@@ -321,17 +321,17 @@ export class MercatorTransform implements ITransform {
         }
     }
 
-    locationToScreenPoint(lnglat: LngLat, terrain?: Terrain): Point {
+    locationToScreenPoint(lnglat: LngLat, terrain?: any): Point {
         return terrain ?
             this.coordinatePoint(MercatorCoordinate.fromLngLat(lnglat), terrain.getElevationForLngLat(lnglat, this), this._pixelMatrix3D) :
             this.coordinatePoint(MercatorCoordinate.fromLngLat(lnglat));
     }
 
-    screenPointToLocation(p: Point, terrain?: Terrain): LngLat {
+    screenPointToLocation(p: Point, terrain?: any): LngLat {
         return this.screenPointToMercatorCoordinate(p, terrain)?.toLngLat();
     }
 
-    screenPointToMercatorCoordinate(p: Point, terrain?: Terrain): MercatorCoordinate {
+    screenPointToMercatorCoordinate(p: Point, terrain?: any): MercatorCoordinate {
         // get point-coordinate from terrain coordinates framebuffer
         if (terrain) {
             const coordinate = terrain.pointCoordinate(p);
@@ -395,7 +395,7 @@ export class MercatorTransform implements ITransform {
             .extend(this.screenPointToLocation(new Point(0, this._helper._height)));
     }
 
-    isPointOnMapSurface(p: Point, terrain?: Terrain): boolean {
+    isPointOnMapSurface(p: Point, terrain?: any): boolean {
         if (terrain) {
             const coordinate = terrain.pointCoordinate(p);
             return coordinate != null;

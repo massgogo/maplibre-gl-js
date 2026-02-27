@@ -12,7 +12,6 @@ import {fakeServer, type FakeServer} from 'nise';
 
 import {type EvaluationParameters} from './evaluation_parameters';
 import {Color, type Feature, type LayerSpecification, type GeoJSONSourceSpecification, type FilterSpecification, type SourceSpecification, type StyleSpecification, type SymbolLayerSpecification, type SkySpecification} from '@maplibre/maplibre-gl-style-spec';
-import {type GeoJSONSource} from '../source/geojson_source';
 import {StubMap, sleep, waitForEvent} from '../util/test/util';
 import {RTLPluginLoadedEventName} from '../source/rtl_text_plugin_status';
 import {MessageType} from '../util/actor_messages';
@@ -1008,7 +1007,7 @@ describe('Style.setState', () => {
         style.loadJSON(initialState);
 
         await style.once('style.load');
-        const geoJSONSource = style.tileManagers['source-id'].getSource() as GeoJSONSource;
+        const geoJSONSource = style.tileManagers['source-id'].getSource() as any;
         const mockStyleSetGeoJSONSourceDate = vi.spyOn(style, 'setGeoJSONSourceData');
         const mockGeoJSONSourceSetData = vi.spyOn(geoJSONSource, 'setData');
         const didChange = style.setState(nextState);
@@ -2543,7 +2542,7 @@ describe('Style.setPaintProperty', () => {
         await style.once('style.load');
         style.update({zoom: tr.zoom} as EvaluationParameters);
         const tileManager = style.tileManagers['geojson'];
-        const source = style.getSource('geojson') as GeoJSONSource;
+        const source = style.getSource('geojson') as any;
 
         await source.once('data');
         vi.spyOn(tileManager, 'reload');

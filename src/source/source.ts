@@ -1,10 +1,4 @@
 import {VectorTileSource} from '../source/vector_tile_source';
-import {RasterTileSource} from '../source/raster_tile_source';
-import {RasterDEMTileSource} from '../source/raster_dem_tile_source';
-import {GeoJSONSource, type GeoJSONSourceShouldReloadTileOptions} from '../source/geojson_source';
-import {VideoSource} from '../source/video_source';
-import {ImageSource} from '../source/image_source';
-import {CanvasSource} from '../source/canvas_source';
 import {type Dispatcher} from '../util/dispatcher';
 
 import type {SourceSpecification} from '@maplibre/maplibre-gl-style-spec';
@@ -13,7 +7,6 @@ import type {Map} from '../ui/map';
 import type {Tile} from '../tile/tile';
 import type {OverscaledTileID, CanonicalTileID} from '../tile/tile_id';
 import type {LoadTileResult} from '../source/vector_tile_source';
-import type {CanvasSourceSpecification} from '../source/canvas_source';
 import {type CalculateTileZoomFunction} from '../geo/projection/covering_tiles';
 
 const registeredSources = {} as {[key:string]: SourceClass};
@@ -122,19 +115,13 @@ export interface Source {
      * Optional function to redefine how tiles are loaded at high pitch angles.
      */
     calculateTileZoom?: CalculateTileZoomFunction;
-    /**
-     * Optional function to determine whether a tile should be reloaded, given a
-     * set of options associated with a `MapSourceDataChangedEvent`.
-     * @internal
-     */
-    shouldReloadTile?(tile: Tile, options: GeoJSONSourceShouldReloadTileOptions): boolean;
 }
 
 /**
  * A general definition of a {@link Source} class for factory usage
  */
 export type SourceClass = {
-    new (id: string, specification: SourceSpecification | CanvasSourceSpecification, dispatcher: Dispatcher, eventedParent: Evented): Source;
+    new (id: string, specification: SourceSpecification, dispatcher: Dispatcher, eventedParent: Evented): Source;
 };
 
 /**
@@ -148,7 +135,7 @@ export type SourceClass = {
  * @param dispatcher - A {@link Dispatcher} instance, which can be used to send messages to the workers.
  * @returns a newly created source
  */
-export const create = (id: string, specification: SourceSpecification | CanvasSourceSpecification, dispatcher: Dispatcher, eventedParent: Evented): Source => {
+export const create = (id: string, specification: SourceSpecification, dispatcher: Dispatcher, eventedParent: Evented): Source => {
 
     const Class = getSourceType(specification.type);
     const source = new Class(id, specification, dispatcher, eventedParent);
@@ -162,20 +149,8 @@ export const create = (id: string, specification: SourceSpecification | CanvasSo
 
 const getSourceType = (name: string): SourceClass => {
     switch (name) {
-        case 'geojson':
-            return GeoJSONSource;
-        case 'image':
-            return ImageSource;
-        case 'raster':
-            return RasterTileSource;
-        case 'raster-dem':
-            return RasterDEMTileSource;
         case 'vector':
             return VectorTileSource;
-        case 'video':
-            return VideoSource;
-        case 'canvas':
-            return CanvasSource;
     }
     return registeredSources[name];
 };

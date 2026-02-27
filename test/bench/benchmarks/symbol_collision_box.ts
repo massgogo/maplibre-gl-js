@@ -8,8 +8,6 @@ import {SingleCollisionBox} from '../../../src/data/bucket/symbol_bucket';
 import {EXTENT} from '../../../src/data/extent';
 import {MercatorTransform} from '../../../src/geo/projection/mercator_transform';
 import {mat4} from 'gl-matrix';
-import {GlobeProjection} from '../../../src/geo/projection/globe_projection';
-import {GlobeTransform} from '../../../src/geo/projection/globe_transform';
 
 type TestSymbol = {
     collisionBox: SingleCollisionBox;
@@ -50,18 +48,11 @@ export default class SymbolCollisionBox extends Benchmark {
     }
 
     private _createTransform() {
-        if (this._useGlobeProjection) {
-            return {
-                transform: new GlobeTransform(),
-                calculatePosMatrix: (_tileID: UnwrappedTileID) => { return undefined; },
-            };
-        } else {
-            const tr = new MercatorTransform({minZoom: 0, maxZoom: 22, minPitch: 0, maxPitch: 60, renderWorldCopies: true});
-            return {
-                transform: tr,
-                calculatePosMatrix: (tileID: UnwrappedTileID) => { return tr.calculatePosMatrix(tileID, false); },
-            };
-        }
+        const tr = new MercatorTransform({minZoom: 0, maxZoom: 22, minPitch: 0, maxPitch: 60, renderWorldCopies: true});
+        return {
+            transform: tr,
+            calculatePosMatrix: (tileID: UnwrappedTileID) => { return tr.calculatePosMatrix(tileID, false); },
+        };
     }
 
     async setup(): Promise<void> {

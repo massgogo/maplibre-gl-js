@@ -23,7 +23,7 @@ import Point from '@mapbox/point-geometry';
 import {type MapControlsDeltas} from '../geo/projection/camera_helper';
 import type {LngLat} from '../geo/lng_lat';
 import type {ITransform} from '../geo/transform_interface';
-import type {Terrain} from '../render/terrain';
+
 
 const isMoving = (p: EventsInProgress) => p.zoom || p.drag || p.roll || p.pitch || p.rotate;
 
@@ -128,7 +128,7 @@ export type EventsInProgress = {
 };
 
 export type MapControlsScenarioOptions = {
-    terrain?: Terrain | null;
+    terrain?: any | null;
     tr: ITransform;
     deltasForHelper: MapControlsDeltas;
     preZoomAroundLoc: LngLat;

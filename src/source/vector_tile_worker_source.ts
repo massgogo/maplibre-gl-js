@@ -8,7 +8,7 @@ import {extend} from '../util/util';
 import {RequestPerformance} from '../util/performance';
 import {VectorTileOverzoomed, sliceVectorTileLayer, toVirtualVectorTile} from './vector_tile_overzoomed';
 import {MLTVectorTile} from './vector_tile_mlt';
-import {WasmVectorTile, initWasmDecoder, isWasmReady} from './vector_tile_wasm';
+import {WasmVectorTile, initWasmDecoder, isWasmReady, getGeneration} from './vector_tile_wasm';
 import type {
     WorkerSource,
     WorkerTileParameters,
@@ -50,13 +50,18 @@ export class VectorTileWorkerSource implements WorkerSource {
      * Uses WASM decoder (planetiler-wasm) when available, otherwise falls back
      * to the JS decoder (@mapbox/vector-tile + pbf).
      */
-    loadVectorTile(params: WorkerTileParameters, rawData: ArrayBuffer): LoadVectorTileResult {
+    loadVectorTile(params: WorkerTileParameters, rawData: ArrayBuffer): LoadVectorTileResult | null {
         try {
             let vectorTile: VectorTileLike;
             if (params.encoding === 'mlt') {
                 vectorTile = new MLTVectorTile(rawData);
             } else if (isWasmReady()) {
-                vectorTile = new WasmVectorTile(rawData);
+                const {z, x, y} = params.tileID.canonical;
+                const wasmTile = new WasmVectorTile(rawData, params.generation, z, x, y);
+                if (wasmTile.isEmpty()) {
+                    return null; // Stale generation — skip decode + parse
+                }
+                vectorTile = wasmTile;
             } else {
                 vectorTile = new VectorTile(new Protobuf(rawData));
             }
@@ -99,6 +104,14 @@ export class VectorTileWorkerSource implements WorkerSource {
             if (params.etag && params.etag === tileResponse.etag) {
                 this.tileState.finishLoading(uid);
                 return this._getEtagUnmodifiedResult(tileResponse, timing);
+            }
+
+            // Generation check after async fetch: zoom/pan may have changed
+            // during the network request. The event loop processes setGeneration
+            // messages while we awaited, so getGeneration() reflects the latest state.
+            if (params.generation !== undefined && isWasmReady() && params.generation !== getGeneration()) {
+                this.tileState.finishLoading(uid);
+                return null; // Stale — skip decode + parse entirely
             }
 
             const tileResult = this.loadVectorTile(params, tileResponse.data);

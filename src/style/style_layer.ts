@@ -25,7 +25,6 @@ import {type EvaluationParameters} from './evaluation_parameters';
 import type {CrossfadeParameters} from './evaluation_parameters';
 
 import type {IReadonlyTransform} from '../geo/transform_interface';
-import type {CustomLayerInterface} from './style_layer/custom_style_layer';
 import type {Map} from '../ui/map';
 import type {StyleSetterOptions} from './style';
 import {type mat4} from 'gl-matrix';
@@ -84,7 +83,7 @@ export type QueryIntersectsFeatureParams = {
 export abstract class StyleLayer extends Evented {
     id: string;
     metadata: unknown;
-    type: LayerSpecification['type'] | CustomLayerInterface['type'];
+    type: LayerSpecification['type'] | string;
     source: string;
     sourceLayer: string;
     minzoom: number;
@@ -115,7 +114,7 @@ export abstract class StyleLayer extends Evented {
 
     private _globalState: Record<string, any>; // reference to global state
 
-    constructor(layer: LayerSpecification | CustomLayerInterface, properties: Readonly<{
+    constructor(layer: LayerSpecification | any, properties: Readonly<{
         layout?: Properties<any>;
         paint?: Properties<any>;
     }>, globalState: Record<string, any>) {

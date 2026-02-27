@@ -16,7 +16,6 @@ import {now} from '../util/time_control';
 import {type Map} from '../ui/map';
 import {type TileCache} from './tile_cache';
 import {MercatorTransform} from '../geo/projection/mercator_transform';
-import {GlobeTransform} from '../geo/projection/globe_transform';
 import {coveringTiles} from '../geo/projection/covering_tiles';
 
 class SourceMock extends Evented implements Source {
@@ -778,7 +777,7 @@ describe('TileManager.update', () => {
     });
 
     test('retains children tiles for pending parents', () => {
-        const transform = new GlobeTransform();
+        const transform = new MercatorTransform();
         transform.resize(511, 511);
         transform.setZoom(1);
         transform.setCenter(new LngLat(360, 0));
@@ -1818,7 +1817,7 @@ describe('TileManager.tilesIn', () => {
     });
 
     test('globe wrap', async () => {
-        const transform = new GlobeTransform();
+        const transform = new MercatorTransform();
         transform.resize(512, 512);
         transform.setZoom(1.05);
         transform.setCenter(new LngLat(179.9, 0.1));
@@ -1871,7 +1870,7 @@ describe('TileManager.tilesIn', () => {
     });
 
     test('globe wrap bounding box spanning antimeridian from 179.9°E', async () => {
-        const transform = new GlobeTransform();
+        const transform = new MercatorTransform();
         transform.resize(512, 512);
         transform.setZoom(1.05);
         transform.setCenter(new LngLat(179.9, 0.1));
@@ -1927,7 +1926,7 @@ describe('TileManager.tilesIn', () => {
     });
 
     test('globe wrap bounding box spanning antimeridian from 179.9°W', async () => {
-        const transform = new GlobeTransform();
+        const transform = new MercatorTransform();
         transform.resize(512, 512);
         transform.setZoom(1.05);
         transform.setCenter(new LngLat(-179.9, 0.1));

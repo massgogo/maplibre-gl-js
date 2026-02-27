@@ -6,7 +6,6 @@ import {type MapGeoJSONFeature} from '../../util/vectortile_to_geojson';
 import {type MapLayerEventType, type MapLibreEvent} from '../events';
 import {Map, type MapOptions} from '../map';
 import {Event as EventedEvent, ErrorEvent} from '../../util/evented';
-import {GlobeProjection} from '../../geo/projection/globe_projection';
 import {type StyleSpecification} from '@maplibre/maplibre-gl-style-spec';
 
 type IsAny<T> = 0 extends T & 1 ? T : never;
@@ -1144,7 +1143,7 @@ describe('map events', () => {
         });
         test('projectiontransition is fired when globe transitions to mercator', async () => {
             const map = createMap();
-            vi.spyOn(GlobeProjection.prototype, 'updateGPUdependent').mockImplementation(() => {});
+            // GlobeProjection module removed - no mock needed
             await map.once('load');
 
             const spy = vi.fn();

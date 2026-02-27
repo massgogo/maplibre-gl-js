@@ -1,6 +1,4 @@
-import type {LoadGeoJSONParameters} from '../source/geojson_worker_source';
 import type {TileParameters, WorkerDEMTileParameters, WorkerTileParameters, WorkerTileResult} from '../source/worker_source';
-import type {DEMData} from '../data/dem_data';
 import type {StyleImage} from '../style/style_image';
 import type {StyleGlyph} from '../style/style_glyph';
 import type {PluginState} from '../source/rtl_text_plugin_status';
@@ -125,6 +123,7 @@ export const enum MessageType {
     abortTile = 'AT',
     removeDEMTile = 'RDT',
     getResource = 'GR',
+    setGeneration = 'SG',
 }
 
 /**
@@ -132,12 +131,12 @@ export const enum MessageType {
  * The key is the event name, the first parameter is the event input type, and the last parameter is the output type.
  */
 export type RequestResponseMessageMap = {
-    [MessageType.loadDEMTile]: [WorkerDEMTileParameters, DEMData];
+    [MessageType.loadDEMTile]: [WorkerDEMTileParameters, any];
     [MessageType.getClusterExpansionZoom]: [ClusterIDAndSource, number];
     [MessageType.getClusterChildren]: [ClusterIDAndSource, Array<GeoJSON.Feature>];
     [MessageType.getClusterLeaves]: [GetClusterLeavesParams, Array<GeoJSON.Feature>];
-    [MessageType.loadData]: [LoadGeoJSONParameters, GeoJSONWorkerSourceLoadDataResult];
-    [MessageType.getData]: [LoadGeoJSONParameters, GeoJSON.GeoJSON];
+    [MessageType.loadData]: [any, GeoJSONWorkerSourceLoadDataResult];
+    [MessageType.getData]: [any, GeoJSON.GeoJSON];
     [MessageType.loadTile]: [WorkerTileParameters, WorkerTileResult];
     [MessageType.reloadTile]: [WorkerTileParameters, WorkerTileResult];
     [MessageType.getGlyphs]: [GetGlyphsParameters, GetGlyphsResponse];
@@ -156,6 +155,7 @@ export type RequestResponseMessageMap = {
     [MessageType.removeDEMTile]: [TileParameters, void];
     [MessageType.getResource]: [RequestParameters, GetResourceResponse<any>];
     [MessageType.getDashes]: [GetDashesParameters, GetDashesResponse];
+    [MessageType.setGeneration]: [{generation: number}, void];
 };
 
 /**

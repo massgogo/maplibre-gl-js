@@ -5,7 +5,6 @@ import {DictionaryCoder} from '../util/dictionary_coder';
 import {SymbolBucket} from '../data/bucket/symbol_bucket';
 import {LineBucket} from '../data/bucket/line_bucket';
 import {FillBucket} from '../data/bucket/fill_bucket';
-import {FillExtrusionBucket} from '../data/bucket/fill_extrusion_bucket';
 import {warnOnce, mapObject} from '../util/util';
 import {ImageAtlas} from '../render/image_atlas';
 import {GlyphAtlas} from '../render/glyph_atlas';
@@ -184,7 +183,7 @@ export class WorkerTile {
                     canonical: this.tileID.canonical,
                     subdivisionGranularity: options.subdivisionGranularity
                 });
-            } else if (bucket.hasDependencies && (bucket instanceof FillBucket || bucket instanceof FillExtrusionBucket || bucket instanceof LineBucket)) {
+            } else if (bucket.hasDependencies && (bucket instanceof FillBucket || bucket instanceof LineBucket)) {
                 recalculateLayers(bucket.layers, this.zoom, availableImages);
                 bucket.addFeatures(options, this.tileID.canonical, imageAtlas.patternPositions, dashPositions);
             }

@@ -15,11 +15,11 @@ import {Bounds} from '../geo/bounds';
 import {EXTENT_BOUNDS} from '../data/extent_bounds';
 import {GEOJSON_TILE_LAYER_NAME} from '../data/feature_index';
 import {hasRasterTransition, isRasterType, updateFadingTiles} from './tile_manager_raster';
-import {backfillDEM} from './tile_manager_raster_dem';
 import {InViewTiles} from './tile_manager_in_view_tiles';
 
 import type {Context} from '../gl/context';
 import type {Source} from '../source/source';
+import type {VectorTileSource} from '../source/vector_tile_source';
 import type {Map} from '../ui/map';
 import type {Style} from '../style/style';
 import type {Dispatcher} from '../util/dispatcher';
@@ -27,8 +27,7 @@ import type {IReadonlyTransform, ITransform} from '../geo/transform_interface';
 import type {TileState} from './tile';
 import type {ICanonicalTileID, SourceSpecification} from '@maplibre/maplibre-gl-style-spec';
 import type {MapSourceDataEvent} from '../ui/events';
-import type {Terrain} from '../render/terrain';
-import type {CanvasSourceSpecification} from '../source/canvas_source';
+
 import type {LoadTileResult} from '../source/vector_tile_source';
 
 type TileResult = {
@@ -81,7 +80,7 @@ export class TileManager extends Evented {
     _paused: boolean;
     _shouldReloadOnResume: boolean;
     transform: ITransform;
-    terrain: Terrain;
+    terrain: any;
     used: boolean;
     usedForTerrain: boolean;
     tileSize: number;
@@ -90,11 +89,12 @@ export class TileManager extends Evented {
     _updated: boolean;
     _rasterFadeDuration: number;
     _maxFadingAncestorLevels: number;
+    _lastUpdateZoom: number;
 
     static maxUnderzooming: number = 10;
     static maxOverzooming: number = 3;
 
-    constructor(id: string, options: SourceSpecification | CanvasSourceSpecification, dispatcher: Dispatcher) {
+    constructor(id: string, options: SourceSpecification | any, dispatcher: Dispatcher) {
         super();
         this.id = id;
         this.dispatcher = dispatcher;
@@ -269,7 +269,7 @@ export class TileManager extends Evented {
 
         for (const id of this._inViewTiles.getAllIds()) {
             const tile = this._inViewTiles.getTileById(id);
-            if (shouldReloadTileOptions && !this._source.shouldReloadTile(tile, shouldReloadTileOptions)) {
+            if (shouldReloadTileOptions && (this._source as any).shouldReloadTile && !(this._source as any).shouldReloadTile(tile, shouldReloadTileOptions)) {
                 continue;
             } else if (sourceDataChanged) {
                 this._reloadTile(id, 'expired');
@@ -310,7 +310,7 @@ export class TileManager extends Evented {
         if (result?.unmodified) return;
 
         if (this.getSource().type === 'raster-dem' && tile.dem) {
-            backfillDEM(tile, this._inViewTiles);
+            // backfillDEM removed (terrain module deleted)
         }
         this._state.initializeTileState(tile, this.map ? this.map.painter : null);
 
@@ -488,7 +488,7 @@ export class TileManager extends Evented {
      * Removes tiles that are outside the viewport and adds new tiles that
      * are inside the viewport.
      */
-    update(transform: ITransform, terrain?: Terrain) {
+    update(transform: ITransform, terrain?: any) {
         if (!this._sourceLoaded || this._paused) {
             return;
         }
@@ -534,6 +534,25 @@ export class TileManager extends Evented {
         // there will be no more data emissions, so we need to emit the event with isSourceLoaded = true
         if (noPendingDataEmissions) {
             this.fire(new Event('data', {sourceDataType: 'idle', dataType: 'source', sourceId: this.id}));
+        }
+
+        // Increment generation for vector tile sources so workers can skip stale tiles.
+        if (this._source.type === 'vector' && (this._source as VectorTileSource).incrementGeneration) {
+            (this._source as VectorTileSource).incrementGeneration();
+        }
+
+        // Skip tile loading during zoom animations for vector sources.
+        // Already-loaded tiles continue to display (overscaled), and the correct
+        // tiles will be loaded once the zoom animation ends (zoomend → update).
+        const currentCoveringZoom = Math.floor(coveringZoomLevel(transform, this._source));
+        const isZoomAnimating = this._source.type === 'vector'
+            && this.map?.isZooming()
+            && this._lastUpdateZoom !== undefined
+            && currentCoveringZoom !== this._lastUpdateZoom;
+        this._lastUpdateZoom = currentCoveringZoom;
+
+        if (isZoomAnimating) {
+            return;
         }
 
         // Retain is a list of tiles that we shouldn't delete, even if they are not

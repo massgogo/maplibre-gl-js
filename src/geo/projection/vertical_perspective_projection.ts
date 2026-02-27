@@ -7,7 +7,6 @@ import {mercatorYfromLat} from '../mercator_coordinate';
 import {SubdivisionGranularityExpression, SubdivisionGranularitySetting} from '../../render/subdivision_granularity_settings';
 import type {Projection, ProjectionGPUContext, TileMeshUsage} from './projection';
 import {type PreparedShader, shaders} from '../../shaders/shaders';
-import {ProjectionErrorMeasurement} from './globe_projection_error_measurement';
 import {createTileMeshWithBuffers, type CreateTileMeshOptions} from '../../util/create_tile_mesh';
 import {type EvaluationParameters} from '../../style/evaluation_parameters';
 
@@ -37,7 +36,7 @@ export class VerticalPerspectiveProjection implements Projection {
     private _tileMeshCache: {[_: string]: Mesh} = {};
 
     // GPU atan() error correction
-    private _errorMeasurement: ProjectionErrorMeasurement;
+    private _errorMeasurement: any;
     private _errorQueryLatitudeDegrees: number;
     private _errorCorrectionUsable: number = 0.0;
     private _errorMeasurementLastValue: number = 0.0;
@@ -65,7 +64,7 @@ export class VerticalPerspectiveProjection implements Projection {
     }
 
     get shaderPreludeCode(): PreparedShader {
-        return shaders.projectionGlobe;
+        return shaders.projectionMercator;
     }
 
     get vertexShaderPreludeCode(): string {
@@ -97,7 +96,7 @@ export class VerticalPerspectiveProjection implements Projection {
 
     public updateGPUdependent(renderContext: ProjectionGPUContext): void {
         if (!this._errorMeasurement) {
-            this._errorMeasurement = new ProjectionErrorMeasurement(renderContext);
+            this._errorMeasurement = null; // ProjectionErrorMeasurement removed
         }
         const mercatorY = mercatorYfromLat(this._errorQueryLatitudeDegrees);
         const expectedResult = 2.0 * Math.atan(Math.exp(Math.PI - (mercatorY * Math.PI * 2.0))) - Math.PI * 0.5;

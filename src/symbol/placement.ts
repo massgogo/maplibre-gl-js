@@ -19,7 +19,7 @@ import type {SymbolBucket, CollisionArrays, SingleCollisionBox, SymbolBuffers} f
 import type {CollisionBoxArray, CollisionVertexArray, SymbolInstance, TextAnchorOffset} from '../data/array_types.g';
 import type {FeatureIndex} from '../data/feature_index';
 import type {OverscaledTileID, UnwrappedTileID} from '../tile/tile_id';
-import {type Terrain} from '../render/terrain';
+
 import {translatePosition, warnOnce} from '../util/util';
 import {type TextAnchor, TextAnchorEnum} from '../style/style_layer/variable_text_anchor';
 
@@ -177,7 +177,7 @@ export type CrossTileID = string | number;
 
 export class Placement {
     transform: IReadonlyTransform;
-    terrain: Terrain;
+    terrain: any;
     collisionIndex: CollisionIndex;
     placements: {
         [_ in CrossTileID]: JointPlacement;
@@ -210,7 +210,7 @@ export class Placement {
         icon: number[];
     }>>;
 
-    constructor(transform: ITransform, terrain: Terrain, fadeDuration: number, crossSourceCollisions: boolean, prevPlacement?: Placement) {
+    constructor(transform: ITransform, terrain: any, fadeDuration: number, crossSourceCollisions: boolean, prevPlacement?: Placement) {
         this.transform = transform.clone();
         this.terrain = terrain;
         this.collisionIndex = new CollisionIndex(this.transform);

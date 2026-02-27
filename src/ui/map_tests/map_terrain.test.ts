@@ -2,7 +2,6 @@ import {describe, beforeEach, afterEach, test, expect, vi} from 'vitest';
 import {createMap, beforeMapTest} from '../../util/test/util';
 import {LngLat} from '../../geo/lng_lat';
 import {fakeServer, type FakeServer} from 'nise';
-import {type Terrain} from '../../render/terrain';
 import {MercatorTransform} from '../../geo/projection/mercator_transform';
 import {type Map} from '../map';
 
@@ -55,7 +54,7 @@ describe('getCameraTargetElevation', () => {
     test('Elevation is zero without terrain, and matches any given terrain', () => {
         expect(map.getCameraTargetElevation()).toBe(0);
 
-        const terrainStub = {} as Terrain;
+        const terrainStub = {} as any;
         map.terrain = terrainStub;
 
         const transform = new MercatorTransform({minZoom: 0, maxZoom: 22, minPitch: 0, maxPitch: 60, renderWorldCopies: true});
@@ -73,7 +72,7 @@ describe('getCameraTargetElevation', () => {
 describe('Keep camera outside terrain', () => {
     test('Try to move camera into terrain', () => {
         let terrainElevation = 10;
-        const terrainStub = {} as Terrain;
+        const terrainStub = {} as any;
         terrainStub.getElevationForLngLatZoom = vi.fn(
             (_lngLat: LngLat, _zoom: number) => terrainElevation
         );

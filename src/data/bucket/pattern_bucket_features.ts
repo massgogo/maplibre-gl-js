@@ -1,5 +1,4 @@
 import type {FillStyleLayer} from '../../style/style_layer/fill_style_layer';
-import type {FillExtrusionStyleLayer} from '../../style/style_layer/fill_extrusion_style_layer';
 import type {LineStyleLayer} from '../../style/style_layer/line_style_layer';
 
 import type {
@@ -8,7 +7,7 @@ import type {
 } from '../bucket';
 import {type PossiblyEvaluated} from '../../style/properties';
 
-type PatternStyleLayers = Array<LineStyleLayer> | Array<FillStyleLayer> | Array<FillExtrusionStyleLayer>;
+type PatternStyleLayers = Array<LineStyleLayer> | Array<FillStyleLayer>;
 
 export function hasPattern(type: string, layers: PatternStyleLayers, options: PopulateParameters) {
     const patterns = options.patternDependencies;

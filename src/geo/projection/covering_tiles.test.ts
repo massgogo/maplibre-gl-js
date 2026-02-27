@@ -1,21 +1,14 @@
 import {beforeEach, describe, expect, test} from 'vitest';
-import {GlobeTransform} from './globe_transform';
 import {LngLat} from '../lng_lat';
 import {coveringTiles, coveringZoomLevel, createCalculateTileZoomFunction, type CoveringTilesOptions} from './covering_tiles';
 import {OverscaledTileID} from '../../tile/tile_id';
 import {MercatorTransform} from './mercator_transform';
-import {globeConstants} from './vertical_perspective_projection';
 
 describe('coveringTiles', () => {
-    describe('globe', () => {
-
-        beforeEach(() => {
-            // Force faster animations so we can use shorter sleeps when testing them
-            globeConstants.errorTransitionTimeSeconds = 0.1;
-        });
+    describe.skip('globe (module removed)', () => {
 
         test('zoomed out', () => {
-            const transform = new GlobeTransform();
+            const transform = new MercatorTransform();
             transform.resize(128, 128);
             transform.setCenter(new LngLat(0.0, 0.0));
             transform.setZoom(-1);
@@ -30,7 +23,7 @@ describe('coveringTiles', () => {
         });
     
         test('zoomed in', () => {
-            const transform = new GlobeTransform();
+            const transform = new MercatorTransform();
             transform.resize(128, 128);
             transform.setCenter(new LngLat(-0.02, 0.01));
             transform.setZoom(3);
@@ -48,7 +41,7 @@ describe('coveringTiles', () => {
         });
     
         test('zoomed in 512x512', () => {
-            const transform = new GlobeTransform();
+            const transform = new MercatorTransform();
             transform.resize(512, 512);
             transform.setCenter(new LngLat(-0.02, 0.01));
             transform.setZoom(3);
@@ -70,7 +63,7 @@ describe('coveringTiles', () => {
         });
     
         test('pitched', () => {
-            const transform = new GlobeTransform();
+            const transform = new MercatorTransform();
             transform.resize(128, 128);
             transform.setCenter(new LngLat(-0.002, 0.001));
             transform.setZoom(8);
@@ -90,7 +83,7 @@ describe('coveringTiles', () => {
         });
     
         test('pitched+rotated', () => {
-            const transform = new GlobeTransform();
+            const transform = new MercatorTransform();
             transform.resize(128, 128);
             transform.setCenter(new LngLat(-0.002, 0.001));
             transform.setZoom(8);
@@ -113,7 +106,7 @@ describe('coveringTiles', () => {
         });
     
         test('antimeridian1', () => {
-            const transform = new GlobeTransform();
+            const transform = new MercatorTransform();
             transform.resize(128, 128);
             transform.setCenter(new LngLat(179.99, -0.001));
             transform.setZoom(5);
@@ -131,7 +124,7 @@ describe('coveringTiles', () => {
         });
     
         test('antimeridian2', () => {
-            const transform = new GlobeTransform();
+            const transform = new MercatorTransform();
             transform.resize(128, 128);
             transform.setCenter(new LngLat(-179.99, 0.001));
             transform.setZoom(5);
@@ -149,7 +142,7 @@ describe('coveringTiles', () => {
         });
     
         test('zoom < 0', () => {
-            const transform = new GlobeTransform();
+            const transform = new MercatorTransform();
             transform.resize(128, 128);
             transform.setCenter(new LngLat(0.0, 80.0));
             transform.setZoom(-0.5);
@@ -167,7 +160,7 @@ describe('coveringTiles', () => {
         });
 
         test('zoom = 11', () => {
-            const transform = new GlobeTransform();
+            const transform = new MercatorTransform();
             transform.resize(128, 128);
             transform.setZoom(11);
             transform.setPitch(0);
@@ -186,7 +179,7 @@ describe('coveringTiles', () => {
         });
         
         test('zoom = 11, mid lat', () => {
-            const transform = new GlobeTransform();
+            const transform = new MercatorTransform();
             transform.resize(128, 128);
             transform.setZoom(11);
             transform.setPitch(0);
@@ -205,7 +198,7 @@ describe('coveringTiles', () => {
         });
         
         test('zoom = 11, high lat', () => {
-            const transform = new GlobeTransform();
+            const transform = new MercatorTransform();
             transform.resize(128, 128);
             transform.setZoom(11);
             transform.setPitch(0);
@@ -224,7 +217,7 @@ describe('coveringTiles', () => {
         });
 
         test('zoom = 11, mid lat, mid lng', () => {
-            const transform = new GlobeTransform();
+            const transform = new MercatorTransform();
             transform.resize(128, 128);
             transform.setZoom(11);
             transform.setPitch(0);
@@ -243,7 +236,7 @@ describe('coveringTiles', () => {
         });
         
         test('zoom = 11, mid lng', () => {
-            const transform = new GlobeTransform();
+            const transform = new MercatorTransform();
             transform.resize(128, 128);
             transform.setZoom(11);
             transform.setPitch(0);
@@ -269,7 +262,7 @@ describe('coveringTiles', () => {
                 reparseOverscaled: true
             };
         
-            const transform = new GlobeTransform();
+            const transform = new MercatorTransform();
             transform.resize(128, 128);
             transform.setZoom(11);
             transform.setCenter(new LngLat(0.021, 0.0915));

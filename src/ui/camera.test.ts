@@ -9,15 +9,9 @@ import {mercatorZfromAltitude} from '../geo/mercator_coordinate';
 import {LngLat, type LngLatLike} from '../geo/lng_lat';
 import {LngLatBounds} from '../geo/lng_lat_bounds';
 import {MercatorTransform} from '../geo/projection/mercator_transform';
-import {GlobeTransform} from '../geo/projection/globe_transform';
-import {getZoomAdjustment} from '../geo/projection/globe_utils';
-import {GlobeCameraHelper} from '../geo/projection/globe_camera_helper';
 import {MercatorCameraHelper} from '../geo/projection/mercator_camera_helper';
 import {getMercatorHorizon} from '../geo/projection/mercator_utils';
 import Point from '@mapbox/point-geometry';
-
-import type {GlobeProjection} from '../geo/projection/globe_projection';
-import type {Terrain} from '../render/terrain';
 
 beforeEach(() => {
     setMatchMedia();
@@ -46,7 +40,7 @@ function attachSimulateFrame(camera) {
 function createCamera(options?): Camera & { simulateFrame: () => void } {
     options = options || {};
 
-    const transform = options.globe ? new GlobeTransform() : new MercatorTransform();
+    const transform = new MercatorTransform();
     transform.setMinZoom(0);
     transform.setMaxZoom(20);
     transform.setMinPitch(0);
@@ -58,9 +52,7 @@ function createCamera(options?): Camera & { simulateFrame: () => void } {
         bearingSnap: options.bearingSnap || 0,
         zoomSnap: options.zoomSnap || 0
     }));
-    if (options.globe) {
-        camera.cameraHelper = new GlobeCameraHelper({useGlobeRendering: true} as GlobeProjection);
-    }
+    // Globe projection removed - always use MercatorCameraHelper
     camera.jumpTo(options);
 
     camera._update = () => {};
@@ -2047,7 +2039,7 @@ describe('flyTo', () => {
         const stub = vi.spyOn(timeControl, 'now');
 
         const terrainCallbacks = {prepare: 0, update: 0, finalize: 0} as any;
-        camera.terrain = {} as Terrain;
+        camera.terrain = {} as any;
         camera._prepareElevation = () => { terrainCallbacks.prepare++; };
         camera._updateElevation = () => { terrainCallbacks.update++; };
         camera._finalizeElevation = () => { terrainCallbacks.finalize++; };
@@ -2071,7 +2063,7 @@ describe('flyTo', () => {
         const stub = vi.spyOn(timeControl, 'now');
 
         const terrainCallbacks = {prepare: 0, update: 0, finalize: 0} as any;
-        camera.terrain = {} as Terrain;
+        camera.terrain = {} as any;
         camera._prepareElevation = () => { terrainCallbacks.prepare++; };
         camera._updateElevation = () => { terrainCallbacks.update++; };
         camera._finalizeElevation = () => { terrainCallbacks.finalize++; };
@@ -2489,7 +2481,7 @@ describe('queryTerrainElevation', () => {
 
     test('Calls getElevationForLngLatZoom with correct arguments', () => {
         const getElevationForLngLat = vi.fn();
-        camera.terrain = {getElevationForLngLat} as any as Terrain;
+        camera.terrain = {getElevationForLngLat} as any;
         camera.transform = new MercatorTransform({minZoom: 0, maxZoom: 22, minPitch: 0, maxPitch: 60, renderWorldCopies: true});
 
         camera.queryTerrainElevation([1, 2]);
@@ -3458,9 +3450,9 @@ describe('flyTo globe projection', () => {
             const camera = createCameraGlobe();
             camera.setZoom(18);
             let ascended;
-            const normalizedStartZoom = camera.getZoom() + getZoomAdjustment(camera.getCenter().lat, 0);
+            const normalizedStartZoom = camera.getZoom() + 0;
             camera.on('zoom', () => {
-                const normalizedZoom = camera.getZoom() + getZoomAdjustment(camera.getCenter().lat, 0);
+                const normalizedZoom = camera.getZoom() + 0;
                 if (normalizedZoom < normalizedStartZoom) {
                     ascended = true;
                 }
@@ -3795,7 +3787,7 @@ describe('flyTo globe projection', () => {
             }, 0);
 
             await promise;
-            expect(camera.getZoom()).toBeCloseTo(2 + getZoomAdjustment(start.lat, target.lat));
+            expect(camera.getZoom()).toBeCloseTo(2 + 0);
             const {lng, lat} = camera.getCenter();
             expect(lng).toBeCloseTo(12);
             expect(lat).toBeCloseTo(34);

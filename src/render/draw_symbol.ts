@@ -30,7 +30,7 @@ import type {UniformValues} from './uniform_binding';
 import type {SymbolSDFUniformsType} from '../render/program/symbol_program';
 import type {CrossTileID, VariableOffset} from '../symbol/placement';
 import type {SymbolBucket, SymbolBuffers} from '../data/bucket/symbol_bucket';
-import type {TerrainData} from '../render/terrain';
+
 import type {SymbolLayerSpecification} from '@maplibre/maplibre-gl-style-spec';
 import type {IReadonlyTransform} from '../geo/transform_interface';
 import type {ColorMode} from '../gl/color_mode';
@@ -43,7 +43,7 @@ import type {ProjectionData} from '../geo/projection/projection_data';
 type SymbolTileRenderState = {
     segments: SegmentVector;
     sortKey: number;
-    terrainData: TerrainData;
+    terrainData: any;
     state: {
         program: Program<any>;
         buffers: SymbolBuffers;
@@ -494,7 +494,7 @@ function drawSymbolElements(
     colorMode: Readonly<ColorMode>,
     uniformValues: UniformValues<SymbolSDFUniformsType | SymbolIconUniformsType>,
     projectionData: ProjectionData,
-    terrainData: TerrainData) {
+    terrainData: any) {
     const context = painter.context;
     const gl = context.gl;
     program.draw(context, gl.TRIANGLES, depthMode, stencilMode, colorMode, CullFaceMode.backCCW,

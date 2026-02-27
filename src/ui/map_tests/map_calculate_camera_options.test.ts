@@ -3,7 +3,6 @@ import {createMap, beforeMapTest} from '../../util/test/util';
 import {LngLat} from '../../geo/lng_lat';
 import {type OverscaledTileID} from '../../tile/tile_id';
 import {type CameraOptions} from '../camera';
-import {type Terrain} from '../../render/terrain';
 import {mercatorZfromAltitude} from '../../geo/mercator_coordinate';
 
 beforeEach(() => {
@@ -18,7 +17,7 @@ describe('calculateCameraOptionsFromTo', () => {
 
         const mockedGetElevation = vi.fn((_lngLat: LngLat) => 111200);
 
-        const terrainStub = {} as Terrain;
+        const terrainStub = {} as any;
         terrainStub.getElevationForLngLat = mockedGetElevation;
         map.terrain = terrainStub;
 
@@ -35,7 +34,7 @@ describe('calculateCameraOptionsFromTo', () => {
 
         const mockedGetElevation = vi.fn((_lngLat: LngLat) => 111200 * 3);
 
-        const terrainStub = {} as Terrain;
+        const terrainStub = {} as any;
         terrainStub.getElevationForLngLat = mockedGetElevation;
         map.terrain = terrainStub;
         // distance between lng x and lng x+1 is 111.2km at same lat
@@ -52,7 +51,7 @@ describe('calculateCameraOptionsFromTo', () => {
 
         const mockedGetElevation = vi.fn((_lngLat: LngLat) => 111200 / 2);
 
-        const terrainStub = {} as Terrain;
+        const terrainStub = {} as any;
         terrainStub.getElevationForLngLat = mockedGetElevation;
         map.terrain = terrainStub;
 
@@ -70,7 +69,7 @@ describe('calculateCameraOptionsFromTo', () => {
 
         const mockedGetElevation = vi.fn((_lngLat: LngLat) => 1000);
 
-        const terrainStub = {} as Terrain;
+        const terrainStub = {} as any;
         terrainStub.getElevationForLngLat = mockedGetElevation;
         map.terrain = terrainStub;
 
@@ -87,7 +86,7 @@ describe('calculateCameraOptionsFromTo', () => {
 
         const mockedGetElevation = vi.fn((_tileID: OverscaledTileID, _x: number, _y: number, _extent?: number) => 0);
 
-        const terrainStub = {} as Terrain;
+        const terrainStub = {} as any;
         terrainStub.getElevation = mockedGetElevation;
         map.terrain = terrainStub;
 
@@ -102,7 +101,7 @@ describe('calculateCameraOptionsFromTo', () => {
 
         const mockedGetElevation = vi.fn((_tileID: OverscaledTileID, _x: number, _y: number, _extent?: number) => 0);
 
-        const terrainStub = {} as Terrain;
+        const terrainStub = {} as any;
         terrainStub.getElevation = mockedGetElevation;
         map.terrain = terrainStub;
 

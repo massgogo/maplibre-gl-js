@@ -6,11 +6,11 @@ import {Evented} from '../util/evented';
 import type {ITransform} from '../geo/transform_interface';
 import type {TileManager} from './tile_manager';
 import type {Source} from '../source/source';
-import {type Terrain} from '../render/terrain';
+
 import {now} from '../util/time_control';
 import {coveringTiles} from '../geo/projection/covering_tiles';
 import {createMat4f64} from '../util/util';
-import {type CanonicalTileRange} from '../source/image_source';
+
 
 /**
  * @internal
@@ -88,7 +88,7 @@ export class TerrainTileManager extends Evented {
      * @param transform - the operation to do
      * @param terrain - the terrain
      */
-    update(transform: ITransform, terrain: Terrain): void {
+    update(transform: ITransform, terrain: any): void {
         // load raster-dem tiles for the current scene.
         this.tileManager.update(transform, terrain);
         // create internal render-to-texture tiles for the current scene.
@@ -153,7 +153,7 @@ export class TerrainTileManager extends Evented {
      */
     getTerrainCoords(
         tileID: OverscaledTileID,
-        terrainTileRanges?: {[zoom: string]: CanonicalTileRange}
+        terrainTileRanges?: {[zoom: string]: any}
     ): Record<string, OverscaledTileID> {
         if (terrainTileRanges) {
             return this._getTerrainCoordsForTileRanges(tileID, terrainTileRanges);
@@ -211,7 +211,7 @@ export class TerrainTileManager extends Evented {
      */
     _getTerrainCoordsForTileRanges(
         tileID: OverscaledTileID,
-        terrainTileRanges: {[zoom: string]: CanonicalTileRange}
+        terrainTileRanges: {[zoom: string]: any}
     ): Record<string, OverscaledTileID> {
         const coords: Record<string, OverscaledTileID> = {};
         for (const key of this._renderableTilesKeys) {
@@ -310,7 +310,7 @@ export class TerrainTileManager extends Evented {
      */
     private _isWithinTileRanges(
         tileID: OverscaledTileID,
-        canonicalTileRanges: {[zoom: string]: CanonicalTileRange}
+        canonicalTileRanges: {[zoom: string]: any}
     ): boolean {
         const range = canonicalTileRanges[tileID.canonical.z];
 

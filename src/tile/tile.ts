@@ -18,7 +18,6 @@ import type {Bucket} from '../data/bucket';
 import type {StyleLayer} from '../style/style_layer';
 import type {WorkerTileResult} from '../source/worker_source';
 import type {Actor} from '../util/actor';
-import type {DEMData} from '../data/dem_data';
 import type {AlphaImage} from '../util/image';
 import type {ImageAtlas} from '../render/image_atlas';
 import type {ImageManager} from '../render/image_manager';
@@ -98,7 +97,7 @@ export class Tile {
     vtLayers: {[_: string]: VectorTileLayerLike};
 
     neighboringTiles: Record<string, {backfilled: boolean}>;
-    dem: DEMData;
+    dem: any;
     demMatrix: mat4;
     aborted: boolean;
     needsHillshadePrepare: boolean;

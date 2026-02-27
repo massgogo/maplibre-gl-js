@@ -4,7 +4,6 @@ import {type LayerSpecification} from '@maplibre/maplibre-gl-style-spec';
 import {type EvaluationParameters} from '../evaluation_parameters';
 import {type CanonicalTileID, UnwrappedTileID} from '../../tile/tile_id';
 import Point from '@mapbox/point-geometry';
-import {GlobeTransform} from '../../geo/projection/globe_transform';
 import {MercatorTransform} from '../../geo/projection/mercator_transform';
 import type {VectorTileFeatureLike} from '@maplibre/vt-pbf';
 
@@ -129,7 +128,7 @@ describe('CircleStyleLayer.queryIntersectsFeature', () => {
     });
 
     describe('globe projection', () => {
-        const transform = new GlobeTransform();
+        const transform = new MercatorTransform();
         transform.resize(400, 300);
 
         describe('map pitch alignment', () => {

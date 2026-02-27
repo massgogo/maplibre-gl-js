@@ -13,8 +13,7 @@ import type {ColorMode} from '../gl/color_mode';
 import type {CullFaceMode} from '../gl/cull_face_mode';
 import type {UniformBindings, UniformValues, UniformLocations} from './uniform_binding';
 import type {BinderUniform} from '../data/program_configuration';
-import {terrainPreludeUniforms, type TerrainPreludeUniformsType} from './program/terrain_program';
-import type {TerrainData} from '../render/terrain';
+
 import {projectionObjectToUniformMap, type ProjectionPreludeUniformsType, projectionUniforms} from './program/projection_program';
 import type {ProjectionData} from '../geo/projection/projection_data';
 
@@ -40,7 +39,7 @@ export class Program<Us extends UniformBindings> {
     attributes: {[_: string]: number};
     numAttributes: number;
     fixedUniforms: Us;
-    terrainUniforms: TerrainPreludeUniformsType;
+    terrainUniforms: any;
     projectionUniforms: ProjectionPreludeUniformsType;
     binderUniforms: Array<BinderUniform>;
     failedToCreate: boolean;
@@ -158,7 +157,7 @@ export class Program<Us extends UniformBindings> {
         }
 
         this.fixedUniforms = fixedUniforms(context, uniformLocations);
-        this.terrainUniforms = terrainPreludeUniforms(context, uniformLocations);
+        this.terrainUniforms = {};
         this.projectionUniforms = projectionUniforms(context, uniformLocations);
         this.binderUniforms = configuration ? configuration.getUniforms(context, uniformLocations) : [];
     }
@@ -170,7 +169,7 @@ export class Program<Us extends UniformBindings> {
         colorMode: Readonly<ColorMode>,
         cullFaceMode: Readonly<CullFaceMode>,
         uniformValues: UniformValues<Us>,
-        terrain: TerrainData,
+        terrain: any,
         projectionData: ProjectionData,
         layerID: string,
         layoutVertexBuffer: VertexBuffer,

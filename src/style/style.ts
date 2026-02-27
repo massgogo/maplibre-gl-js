@@ -1,6 +1,5 @@
 import {Event, ErrorEvent, Evented} from '../util/evented';
 import {type StyleLayer} from './style_layer';
-import {isRasterStyleLayer} from './style_layer/raster_style_layer';
 import {createStyleLayer} from './create_style_layer';
 import {loadSprite} from './load_sprite';
 import {ImageManager} from '../render/image_manager';
@@ -19,7 +18,6 @@ import {validateStyle, emitValidationErrors as _emitValidationErrors} from './va
 import {type Source} from '../source/source';
 import {type QueryRenderedFeaturesOptions, type QueryRenderedFeaturesOptionsStrict, type QueryRenderedFeaturesResults, type QueryRenderedFeaturesResultsItem, type QuerySourceFeatureOptions, queryRenderedFeatures, queryRenderedSymbols, querySourceFeatures} from '../source/query_features';
 import {TileManager} from '../tile/tile_manager';
-import {type GeoJSONSource} from '../source/geojson_source';
 import {latest as styleSpec, derefLayers, emptyStyle, diff as diffStyles, type DiffCommand} from '@maplibre/maplibre-gl-style-spec';
 import {getGlobalWorkerPool} from '../util/global_worker_pool';
 import {rtlMainThreadPluginFactory} from '../source/rtl_text_plugin_main_thread';
@@ -27,7 +25,6 @@ import {RTLPluginLoadedEventName} from '../source/rtl_text_plugin_status';
 import {PauseablePlacement} from './pauseable_placement';
 import {ZoomHistory} from './zoom_history';
 import {CrossTileSymbolIndex} from '../symbol/cross_tile_symbol_index';
-import {validateCustomStyleLayer} from './style_layer/custom_style_layer';
 import type {MapGeoJSONFeature} from '../util/vectortile_to_geojson';
 import type Point from '@mapbox/point-geometry';
 
@@ -57,8 +54,6 @@ import type {
     SkySpecification,
     StateSpecification
 } from '@maplibre/maplibre-gl-style-spec';
-import type {CanvasSourceSpecification} from '../source/canvas_source';
-import type {CustomLayerInterface} from './style_layer/custom_style_layer';
 import type {Validator} from './validate_style';
 import {
     type GetDashesParameters,
@@ -195,9 +190,9 @@ export type StyleSwapOptions = {
 
 /**
  * Specifies a layer to be added to a {@link Style}. In addition to a standard {@link LayerSpecification}
- * or a {@link CustomLayerInterface}, a {@link LayerSpecification} with an embedded {@link SourceSpecification} can also be provided.
+ * or a custom layer, a {@link LayerSpecification} with an embedded {@link SourceSpecification} can also be provided.
  */
-export type AddLayerObject = LayerSpecification | (Omit<LayerSpecification, 'source'> & {source: SourceSpecification}) | CustomLayerInterface;
+export type AddLayerObject = LayerSpecification | (Omit<LayerSpecification, 'source'> & {source: SourceSpecification}) | any;
 
 /**
  * The Style base class
@@ -510,10 +505,7 @@ export class Style extends Evented {
             styledLayer.setEventedParent(this, {layer: {id: layer.id}});
             this._layers[layer.id] = styledLayer;
 
-            if (isRasterStyleLayer(styledLayer) && this.tileManagers[styledLayer.source]) {
-                const rasterFadeDuration = layer.paint?.['raster-fade-duration'] ?? styledLayer.paint.get('raster-fade-duration');
-                this.tileManagers[styledLayer.source].setRasterFadeDuration(rasterFadeDuration);
-            }
+
         }
     }
 
@@ -999,7 +991,7 @@ export class Style extends Evented {
         return this.imageManager.listImages();
     }
 
-    addSource(id: string, source: SourceSpecification | CanvasSourceSpecification, options: StyleSetterOptions = {}) {
+    addSource(id: string, source: SourceSpecification | any, options: StyleSetterOptions = {}) {
         this._checkLoaded();
 
         if (this.tileManagers[id] !== undefined) {
@@ -1061,7 +1053,7 @@ export class Style extends Evented {
         this._checkLoaded();
 
         if (this.tileManagers[id] === undefined) throw new Error(`There is no source with this ID=${id}`);
-        const geojsonSource: GeoJSONSource = (this.tileManagers[id].getSource() as any);
+        const geojsonSource: any = (this.tileManagers[id].getSource() as any);
         if (geojsonSource.type !== 'geojson') throw new Error(`geojsonSource.type is ${geojsonSource.type}, which is !== 'geojson`);
 
         geojsonSource.setData(data);
@@ -1097,8 +1089,6 @@ export class Style extends Evented {
         let layer: ReturnType<typeof createStyleLayer>;
         if (layerObject.type === 'custom') {
 
-            if (emitValidationErrors(this, validateCustomStyleLayer(layerObject))) return;
-
             layer = createStyleLayer(layerObject, this._globalState);
 
         } else {
@@ -1112,7 +1102,7 @@ export class Style extends Evented {
             if (this._validate(validateStyle.layer,
                 `layers.${id}`, layerObject, {arrayIndex: -1}, options)) return;
 
-            layer = createStyleLayer(layerObject as LayerSpecification | CustomLayerInterface, this._globalState);
+            layer = createStyleLayer(layerObject as LayerSpecification, this._globalState);
             this._validateLayer(layer);
 
             layer.setEventedParent(this, {layer: {id}});
@@ -1358,7 +1348,7 @@ export class Style extends Evented {
             this._updateLayer(layer);
         }
 
-        if (isRasterStyleLayer(layer) && name === 'raster-fade-duration') {
+        if (layer.type === 'raster' && name === 'raster-fade-duration') {
             this.tileManagers[layer.source].setRasterFadeDuration(value);
         }
 

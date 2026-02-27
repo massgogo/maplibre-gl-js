@@ -26,8 +26,7 @@ import {webpSupported} from '../util/webp_supported';
 import {PerformanceMarkers, PerformanceUtils} from '../util/performance';
 import {type Source} from '../source/source';
 import {type StyleLayer} from '../style/style_layer';
-import {Terrain} from '../render/terrain';
-import {RenderToTexture} from '../render/render_to_texture';
+
 import {config} from '../util/config';
 import {defaultLocale} from './default_locale';
 import {MercatorTransform} from '../geo/projection/mercator_transform';
@@ -64,7 +63,6 @@ import type {
     ProjectionSpecification,
     SkySpecification,
 } from '@maplibre/maplibre-gl-style-spec';
-import type {CanvasSourceSpecification} from '../source/canvas_source';
 import type {GeoJSONFeature, MapGeoJSONFeature} from '../util/vectortile_to_geojson';
 import type {ControlPosition, IControl} from './control/control';
 import type {QueryRenderedFeaturesOptions, QuerySourceFeatureOptions} from '../source/query_features';
@@ -784,7 +782,6 @@ export class Map extends Camera {
         this.on('moveend', () => this._update(false));
         this.on('zoom', () => this._update(true));
         this.on('terrain', () => {
-            this.painter.terrainFacilitator.dirty = true;
             this._update(true);
         });
         this.once('idle', () => { this._idleTriggered = true; });
@@ -2245,7 +2242,7 @@ export class Map extends Camera {
      * @param id - The ID of the source to add. Must not conflict with existing sources.
      * @param source - The source object, conforming to the
      * MapLibre Style Specification's [source definition](https://maplibre.org/maplibre-style-spec/sources) or
-     * {@link CanvasSourceSpecification}.
+     * a CanvasSourceSpecification.
      * @example
      * ```ts
      * map.addSource('my-data', {
@@ -2272,7 +2269,7 @@ export class Map extends Camera {
      * ```
      * @see GeoJSON source: [Add live realtime data](https://maplibre.org/maplibre-gl-js/docs/examples/add-live-realtime-data/)
      */
-    addSource(id: string, source: SourceSpecification | CanvasSourceSpecification): this {
+    addSource(id: string, source: SourceSpecification | any): this {
         this._lazyInitEmptyStyle();
         this.style.addSource(id, source);
         return this._update(true);
@@ -2321,51 +2318,13 @@ export class Map extends Camera {
             // remove terrain
             if (this.terrain) this.terrain.tileManager.destruct();
             this.terrain = null;
-            if (this.painter.renderToTexture) this.painter.renderToTexture.destruct();
-            this.painter.renderToTexture = null;
             this.transform.setMinElevationForCurrentTile(0);
             if (this._centerClampedToGround) {
                 this.transform.setElevation(0);
             }
         } else {
-            // add terrain
-            const tileManager = this.style.tileManagers[options.source];
-            if (!tileManager) throw new Error(`cannot load terrain, because there exists no source with ID: ${options.source}`);
-            // Update terrain tiles when adding new terrain
-            if (this.terrain === null) tileManager.reload();
-            // Warn once if user is using the same source for hillshade/color-relief and terrain
-            for (const index in this.style._layers) {
-                const thisLayer = this.style._layers[index];
-                if (thisLayer.type === 'hillshade' && thisLayer.source === options.source) {
-                    warnOnce('You are using the same source for a hillshade layer and for 3D terrain. Please consider using two separate sources to improve rendering quality.');
-                }
-                if (thisLayer.type === 'color-relief' && thisLayer.source === options.source) {
-                    warnOnce('You are using the same source for a color-relief layer and for 3D terrain. Please consider using two separate sources to improve rendering quality.');
-                }
-            }
-            this.terrain = new Terrain(this.painter, tileManager, options);
-            this.painter.renderToTexture = new RenderToTexture(this.painter, this.terrain);
-            this.transform.setMinElevationForCurrentTile(this.terrain.getMinTileElevationForLngLatZoom(this.transform.center, this.transform.tileZoom));
-            this.transform.setElevation(this.terrain.getElevationForLngLatZoom(this.transform.center, this.transform.tileZoom));
-            this._terrainDataCallback = e => {
-                if (e.dataType === 'style') {
-                    this.terrain.tileManager.freeRtt();
-                } else if (e.dataType === 'source' && e.tile) {
-                    if (e.sourceId === options.source && !this._elevationFreeze) {
-                        this.transform.setMinElevationForCurrentTile(this.terrain.getMinTileElevationForLngLatZoom(this.transform.center, this.transform.tileZoom));
-                        if (this._centerClampedToGround) {
-                            this.transform.setElevation(this.terrain.getElevationForLngLatZoom(this.transform.center, this.transform.tileZoom));
-                        }
-                    }
-
-                    if (e.source?.type === 'image') {
-                        this.terrain.tileManager.freeRtt();
-                    } else {
-                        this.terrain.tileManager.freeRtt(e.tile.tileID);
-                    }
-                }
-            };
-            this.style.on('data', this._terrainDataCallback);
+            // Terrain module removed - setTerrain is a no-op
+            warnOnce('Terrain is not supported in this build.');
         }
 
         this.fire(new Event('terrain', {terrain: options}));
@@ -2746,7 +2705,7 @@ export class Map extends Camera {
      *
      * @param layer - The layer to add,
      * conforming to either the MapLibre Style Specification's [layer definition](https://maplibre.org/maplibre-style-spec/layers) or,
-     * less commonly, the {@link CustomLayerInterface} specification. Can also be a layer definition with an embedded source definition.
+     * less commonly, a custom layer specification. Can also be a layer definition with an embedded source definition.
      * The MapLibre Style Specification's layer definition is appropriate for most layers.
      *
      * @param beforeId - The ID of an existing layer to insert the new layer before,

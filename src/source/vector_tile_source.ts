@@ -84,6 +84,7 @@ export class VectorTileSource extends Evented implements Source {
     isTileClipped: boolean;
     _tileJSONRequest: AbortController;
     _loaded: boolean;
+    _generation: number;
 
     constructor(id: string, options: VectorTileSourceOptions, dispatcher: Dispatcher, eventedParent: Evented) {
         super();
@@ -98,6 +99,7 @@ export class VectorTileSource extends Evented implements Source {
         this.reparseOverscaled = true;
         this.isTileClipped = true;
         this._loaded = false;
+        this._generation = 0;
 
         extend(this, pick(options, ['url', 'scheme', 'tileSize', 'promoteId', 'encoding']));
         this._options = extend({type: 'vector'}, options);
@@ -217,6 +219,7 @@ export class VectorTileSource extends Evented implements Source {
             promoteId: this.promoteId,
             subdivisionGranularity: this.map.style.projection.subdivisionGranularity,
             encoding: this.encoding,
+            generation: this._generation,
             overzoomParameters: this._getOverzoomParameters(tile),
             etag: tile.etag
         };
@@ -323,5 +326,15 @@ export class VectorTileSource extends Evented implements Source {
 
     hasTransition() {
         return false;
+    }
+
+    /**
+     * Increment the generation counter and broadcast to all workers.
+     * Called by TileManager when the set of needed tiles changes (zoom/pan).
+     * Stale tiles in workers will be skipped, avoiding wasted decode/parse work.
+     */
+    incrementGeneration() {
+        this._generation++;
+        this.dispatcher.broadcast(MessageType.setGeneration, {generation: this._generation});
     }
 }

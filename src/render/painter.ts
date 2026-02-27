@@ -3,8 +3,7 @@ import {mat4} from 'gl-matrix';
 import {TileManager} from '../tile/tile_manager';
 import {EXTENT} from '../data/extent';
 import {SegmentVector} from '../data/segment';
-import {RasterBoundsArray, PosArray, TriangleIndexArray, LineStripIndexArray} from '../data/array_types.g';
-import rasterBoundsAttributes from '../data/raster_bounds_attributes';
+import {PosArray, TriangleIndexArray, LineStripIndexArray} from '../data/array_types.g';
 import posAttributes from '../data/pos_attributes';
 import {type ProgramConfiguration} from '../data/program_configuration';
 import {CrossTileSymbolIndex} from '../symbol/cross_tile_symbol_index';
@@ -20,19 +19,11 @@ import {Texture} from './texture';
 import {Color} from '@maplibre/maplibre-gl-style-spec';
 import {drawSymbols} from './draw_symbol';
 import {drawCircles} from './draw_circle';
-import {drawHeatmap} from './draw_heatmap';
 import {drawLine} from './draw_line';
 import {drawFill} from './draw_fill';
-import {drawFillExtrusion} from './draw_fill_extrusion';
-import {drawHillshade} from './draw_hillshade';
-import {drawColorRelief} from './draw_color_relief';
-import {drawRaster} from './draw_raster';
 import {drawBackground} from './draw_background';
 import {drawDebug, drawDebugPadding, selectDebugSource} from './draw_debug';
-import {drawCustom} from './draw_custom';
-import {drawDepth, drawCoords} from './draw_terrain';
 import {type OverscaledTileID} from '../tile/tile_id';
-import {drawSky, drawAtmosphere} from './draw_sky';
 import {Mesh} from './mesh';
 import {MercatorShaderDefine, MercatorShaderVariantKey} from '../geo/projection/mercator_projection';
 
@@ -47,20 +38,13 @@ import type {VertexBuffer} from '../gl/vertex_buffer';
 import type {IndexBuffer} from '../gl/index_buffer';
 import type {DepthRangeType, DepthMaskType, DepthFuncType} from '../gl/types';
 import type {ResolvedImage} from '@maplibre/maplibre-gl-style-spec';
-import type {RenderToTexture} from './render_to_texture';
 import type {ProjectionData} from '../geo/projection/projection_data';
 import {coveringTiles} from '../geo/projection/covering_tiles';
 import {isSymbolStyleLayer} from '../style/style_layer/symbol_style_layer';
 import {isCircleStyleLayer} from '../style/style_layer/circle_style_layer';
-import {isHeatmapStyleLayer} from '../style/style_layer/heatmap_style_layer';
 import {isLineStyleLayer} from '../style/style_layer/line_style_layer';
 import {isFillStyleLayer} from '../style/style_layer/fill_style_layer';
-import {isFillExtrusionStyleLayer} from '../style/style_layer/fill_extrusion_style_layer';
-import {isHillshadeStyleLayer} from '../style/style_layer/hillshade_style_layer';
-import {isColorReliefStyleLayer} from '../style/style_layer/color_relief_style_layer';
-import {isRasterStyleLayer} from '../style/style_layer/raster_style_layer';
 import {isBackgroundStyleLayer} from '../style/style_layer/background_style_layer';
-import {isCustomStyleLayer} from '../style/style_layer/custom_style_layer';
 
 export type RenderPass = 'offscreen' | 'opaque' | 'translucent';
 
@@ -87,7 +71,6 @@ export type RenderOptions = {
 export class Painter {
     context: Context;
     transform: IReadonlyTransform;
-    renderToTexture: RenderToTexture;
     _tileTextures: {
         [_: number]: Array<Texture>;
     };
@@ -103,10 +86,6 @@ export class Painter {
 
     debugBuffer: VertexBuffer;
     debugSegments: SegmentVector;
-    rasterBoundsBuffer: VertexBuffer;
-    rasterBoundsSegments: SegmentVector;
-    rasterBoundsBufferPosOnly: VertexBuffer;
-    rasterBoundsSegmentsPosOnly: SegmentVector;
     viewportBuffer: VertexBuffer;
     viewportSegments: SegmentVector;
     quadTriangleIndexBuffer: IndexBuffer;
@@ -131,16 +110,11 @@ export class Painter {
     symbolFadeChange: number;
     debugOverlayTexture: Texture;
     debugOverlayCanvas: HTMLCanvasElement;
-    // this object stores the current camera-matrix and the last render time
-    // of the terrain-facilitators. e.g. depth & coords framebuffers
-    // every time the camera-matrix changes the terrain-facilitators will be redrawn.
-    terrainFacilitator: {dirty: boolean; matrix: mat4; renderTime: number};
 
     constructor(gl: WebGLRenderingContext | WebGL2RenderingContext, transform: IReadonlyTransform) {
         this.context = new Context(gl);
         this.transform = transform;
         this._tileTextures = {};
-        this.terrainFacilitator = {dirty: true, matrix: mat4.identity(new Float64Array(16) as any), renderTime: 0};
 
         this.setup();
 
@@ -187,22 +161,6 @@ export class Painter {
         debugArray.emplaceBack(EXTENT, EXTENT);
         this.debugBuffer = context.createVertexBuffer(debugArray, posAttributes.members);
         this.debugSegments = SegmentVector.simpleSegment(0, 0, 4, 5);
-
-        const rasterBoundsArray = new RasterBoundsArray();
-        rasterBoundsArray.emplaceBack(0, 0, 0, 0);
-        rasterBoundsArray.emplaceBack(EXTENT, 0, EXTENT, 0);
-        rasterBoundsArray.emplaceBack(0, EXTENT, 0, EXTENT);
-        rasterBoundsArray.emplaceBack(EXTENT, EXTENT, EXTENT, EXTENT);
-        this.rasterBoundsBuffer = context.createVertexBuffer(rasterBoundsArray, rasterBoundsAttributes.members);
-        this.rasterBoundsSegments = SegmentVector.simpleSegment(0, 0, 4, 2);
-
-        const rasterBoundsArrayPosOnly = new PosArray();
-        rasterBoundsArrayPosOnly.emplaceBack(0, 0);
-        rasterBoundsArrayPosOnly.emplaceBack(EXTENT, 0);
-        rasterBoundsArrayPosOnly.emplaceBack(0, EXTENT);
-        rasterBoundsArrayPosOnly.emplaceBack(EXTENT, EXTENT);
-        this.rasterBoundsBufferPosOnly = context.createVertexBuffer(rasterBoundsArrayPosOnly, posAttributes.members);
-        this.rasterBoundsSegmentsPosOnly = SegmentVector.simpleSegment(0, 0, 4, 5);
 
         const viewportArray = new PosArray();
         viewportArray.emplaceBack(0, 0);
@@ -267,7 +225,7 @@ export class Painter {
             this.quadTriangleIndexBuffer, this.viewportSegments);
     }
 
-    _renderTileClippingMasks(layer: StyleLayer, tileIDs: Array<OverscaledTileID>, renderToTexture: boolean) {
+    _renderTileClippingMasks(layer: StyleLayer, tileIDs: Array<OverscaledTileID>) {
         if (this.currentStencilSource === layer.source || !layer.isTileClipped() || !tileIDs || !tileIDs.length) {
             return;
         }
@@ -294,9 +252,9 @@ export class Painter {
         // However, we use a simpler approach because we don't care about overdraw here.
 
         // First pass - draw tiles with borders and with GL_ALWAYS
-        this._renderTileMasks(stencilRefs, tileIDs, renderToTexture, true);
+        this._renderTileMasks(stencilRefs, tileIDs, false, true);
         // Second pass - draw borderless tiles with GL_ALWAYS
-        this._renderTileMasks(stencilRefs, tileIDs, renderToTexture, false);
+        this._renderTileMasks(stencilRefs, tileIDs, false, false);
 
         this._tileClippingMaskIDs = stencilRefs;
     }
@@ -321,7 +279,7 @@ export class Painter {
             program.draw(context, gl.TRIANGLES, DepthMode.disabled,
                 // Tests will always pass, and ref value will be written to stencil buffer.
                 new StencilMode({func: gl.ALWAYS, mask: 0}, stencilRef, 0xFF, gl.KEEP, gl.KEEP, gl.REPLACE),
-                ColorMode.disabled, renderToTexture ? CullFaceMode.disabled : CullFaceMode.backCCW, null,
+                ColorMode.disabled, CullFaceMode.backCCW, null,
                 terrainData, projectionData, '$clipping', mesh.vertexBuffer,
                 mesh.indexBuffer, mesh.segments);
         }
@@ -495,7 +453,7 @@ export class Painter {
         const coordsAscending: {[_: string]: Array<OverscaledTileID>} = {};
         const coordsDescending: {[_: string]: Array<OverscaledTileID>} = {};
         const coordsDescendingSymbol: {[_: string]: Array<OverscaledTileID>} = {};
-        const renderOptions: RenderOptions = {isRenderingToTexture: false, isRenderingGlobe: style.projection?.transitionState > 0};
+        const renderOptions: RenderOptions = {isRenderingToTexture: false, isRenderingGlobe: false};
 
         for (const id in tileManagers) {
             const tileManager = tileManagers[id];
@@ -517,14 +475,6 @@ export class Painter {
             }
         }
 
-        this.maybeDrawDepthAndCoords(false);
-
-        if (this.renderToTexture) {
-            this.renderToTexture.prepareForRender(this.style, this.transform.zoom);
-            // this is disabled, because render-to-texture is rendering all layers from bottom to top.
-            this.opaquePassCutoff = 0;
-        }
-
         // Offscreen pass ===============================================
         // We first do all rendering that requires rendering to a separate
         // framebuffer, and then save those for rendering back to the map
@@ -536,7 +486,7 @@ export class Painter {
             if (!layer.hasOffscreenPass() || layer.isHidden(this.transform.zoom)) continue;
 
             const coords = coordsDescending[layer.source];
-            if (layer.type !== 'custom' && !coords.length) continue;
+            if (!coords.length) continue;
 
             this.renderLayer(this, tileManagers[layer.source], layer, coords, renderOptions);
         }
@@ -555,60 +505,37 @@ export class Painter {
         this.context.clear({color: options.showOverdrawInspector ? Color.black : Color.transparent, depth: 1});
         this.clearStencil();
 
-        // draw sky first to not overwrite symbols
-        if (this.style.sky) drawSky(this, this.style.sky);
-
         this._showOverdrawInspector = options.showOverdrawInspector;
         this.depthRangeFor3D = [0, 1 - ((style._order.length + 2) * this.numSublayers * this.depthEpsilon)];
 
         // Opaque pass ===============================================
         // Draw opaque layers top-to-bottom first.
-        if (!this.renderToTexture) {
-            this.renderPass = 'opaque';
+        this.renderPass = 'opaque';
 
-            for (this.currentLayer = layerIds.length - 1; this.currentLayer >= 0; this.currentLayer--) {
-                const layer = this.style._layers[layerIds[this.currentLayer]];
-                const tileManager = tileManagers[layer.source];
-                const coords = coordsAscending[layer.source];
+        for (this.currentLayer = layerIds.length - 1; this.currentLayer >= 0; this.currentLayer--) {
+            const layer = this.style._layers[layerIds[this.currentLayer]];
+            const tileManager = tileManagers[layer.source];
+            const coords = coordsAscending[layer.source];
 
-                this._renderTileClippingMasks(layer, coords, false);
-                this.renderLayer(this, tileManager, layer, coords, renderOptions);
-            }
+            this._renderTileClippingMasks(layer, coords);
+            this.renderLayer(this, tileManager, layer, coords, renderOptions);
         }
 
         // Translucent pass ===============================================
         // Draw all other layers bottom-to-top.
         this.renderPass = 'translucent';
 
-        let globeDepthRendered = false;
-
         for (this.currentLayer = 0; this.currentLayer < layerIds.length; this.currentLayer++) {
             const layer = this.style._layers[layerIds[this.currentLayer]];
             const tileManager = tileManagers[layer.source];
-
-            if (this.renderToTexture && this.renderToTexture.renderLayer(layer, renderOptions)) continue;
-
-            if (!this.opaquePassEnabledForLayer() && !globeDepthRendered) {
-                globeDepthRendered = true;
-                // Render the globe sphere into the depth buffer - but only if globe is enabled and terrain is disabled.
-                // There should be no need for explicitly writing tile depths when terrain is enabled.
-                if (renderOptions.isRenderingGlobe && !this.style.map.terrain) {
-                    this._renderTilesDepthBuffer();
-                }
-            }
 
             // For symbol layers in the translucent pass, we add extra tiles to the renderable set
             // for cross-tile symbol fading. Symbol layers don't use tile clipping, so no need to render
             // separate clipping masks
             const coords = (layer.type === 'symbol' ? coordsDescendingSymbol : coordsDescending)[layer.source];
 
-            this._renderTileClippingMasks(layer, coordsAscending[layer.source], !!this.renderToTexture);
+            this._renderTileClippingMasks(layer, coordsAscending[layer.source]);
             this.renderLayer(this, tileManager, layer, coords, renderOptions);
-        }
-
-        // Render atmosphere, only for Globe projection
-        if (renderOptions.isRenderingGlobe) {
-            drawAtmosphere(this, this.style.sky, this.style.light);
         }
 
         if (this.options.showTileBoundaries) {
@@ -627,61 +554,21 @@ export class Painter {
         this.context.setDefault();
     }
 
-    /**
-     * Update the depth and coords framebuffers, if the contents of those frame buffers is out of date.
-     * If requireExact is false, then the contents of those frame buffers is not updated if it is close
-     * to accurate (that is, the camera has not moved much since it was updated last).
-     */
-    maybeDrawDepthAndCoords(requireExact: boolean) {
-        if (!this.style || !this.style.map || !this.style.map.terrain) {
-            return;
-        }
-        const prevMatrix = this.terrainFacilitator.matrix;
-        const currMatrix = this.transform.modelViewProjectionMatrix;
-
-        // Update coords/depth-framebuffer on camera movement, or tile reloading
-        let doUpdate = this.terrainFacilitator.dirty;
-        doUpdate ||= requireExact ? !mat4.exactEquals(prevMatrix, currMatrix) : !mat4.equals(prevMatrix, currMatrix);
-        doUpdate ||= this.style.map.terrain.tileManager.anyTilesAfterTime(this.terrainFacilitator.renderTime);
-
-        if (!doUpdate) {
-            return;
-        }
-
-        mat4.copy(prevMatrix, currMatrix);
-        this.terrainFacilitator.renderTime = Date.now();
-        this.terrainFacilitator.dirty = false;
-        drawDepth(this, this.style.map.terrain);
-        drawCoords(this, this.style.map.terrain);
-    }
-
     renderLayer(painter: Painter, tileManager: TileManager, layer: StyleLayer, coords: Array<OverscaledTileID>, renderOptions: RenderOptions) {
         if (layer.isHidden(this.transform.zoom)) return;
-        if (layer.type !== 'background' && layer.type !== 'custom' && !(coords || []).length) return;
+        if (layer.type !== 'background' && !(coords || []).length) return;
         this.id = layer.id;
 
         if (isSymbolStyleLayer(layer)) {
             drawSymbols(painter, tileManager, layer, coords, this.style.placement.variableOffsets, renderOptions);
         } else if (isCircleStyleLayer(layer)) {
             drawCircles(painter, tileManager, layer, coords, renderOptions);
-        } else if (isHeatmapStyleLayer(layer)) {
-            drawHeatmap(painter, tileManager, layer, coords, renderOptions);
         } else if (isLineStyleLayer(layer)) {
             drawLine(painter, tileManager, layer, coords, renderOptions);
         } else if (isFillStyleLayer(layer)) {
             drawFill(painter, tileManager, layer, coords, renderOptions);
-        } else if (isFillExtrusionStyleLayer(layer)) {
-            drawFillExtrusion(painter, tileManager, layer, coords, renderOptions);
-        } else if (isHillshadeStyleLayer(layer)) {
-            drawHillshade(painter, tileManager, layer, coords, renderOptions);
-        } else if (isColorReliefStyleLayer(layer)) {
-            drawColorRelief(painter, tileManager, layer, coords, renderOptions);
-        } else if (isRasterStyleLayer(layer)) {
-            drawRaster(painter, tileManager, layer, coords, renderOptions);
         } else if (isBackgroundStyleLayer(layer)) {
             drawBackground(painter, tileManager, layer, coords, renderOptions);
-        } else if (isCustomStyleLayer(layer)) {
-            drawCustom(painter, tileManager, layer, renderOptions);
         }
     }
 
@@ -808,8 +695,6 @@ export class Painter {
 
         if (this.tileExtentBuffer) this.tileExtentBuffer.destroy();
         if (this.debugBuffer) this.debugBuffer.destroy();
-        if (this.rasterBoundsBuffer) this.rasterBoundsBuffer.destroy();
-        if (this.rasterBoundsBufferPosOnly) this.rasterBoundsBufferPosOnly.destroy();
         if (this.viewportBuffer) this.viewportBuffer.destroy();
         if (this.tileBorderIndexBuffer) this.tileBorderIndexBuffer.destroy();
         if (this.quadTriangleIndexBuffer) this.quadTriangleIndexBuffer.destroy();

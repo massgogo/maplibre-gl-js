@@ -6,7 +6,6 @@ import type {CanonicalTileID, OverscaledTileID} from '../tile/tile_id';
 import type {Bucket} from '../data/bucket';
 import type {FeatureIndex} from '../data/feature_index';
 import type {CollisionBoxArray} from '../data/array_types.g';
-import type {DEMEncoding} from '../data/dem_data';
 import type {StyleGlyph} from '../style/style_glyph';
 import type {StyleImage} from '../style/style_image';
 import type {PromoteIdSpecification} from '@maplibre/maplibre-gl-style-spec';
@@ -42,6 +41,11 @@ export type WorkerTileParameters = TileParameters & {
     subdivisionGranularity: SubdivisionGranularitySetting;
     encoding?: string;
     /**
+     * Generation counter for tile staleness detection.
+     * When the generation changes (zoom/pan), stale tiles are skipped.
+     */
+    generation?: number;
+    /**
      * Provide this property when the requested tile has a higher canonical Z than source maxzoom.
      * This allows the worker to know that it needs to overzoom from a source tile.
      */
@@ -62,7 +66,7 @@ export type OverzoomParameters = {
  */
 export type WorkerDEMTileParameters = TileParameters & {
     rawImageData: RGBAImage | ImageBitmap | ImageData;
-    encoding: DEMEncoding;
+    encoding: any;
     redFactor: number;
     greenFactor: number;
     blueFactor: number;

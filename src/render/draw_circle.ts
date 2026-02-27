@@ -15,7 +15,7 @@ import type {VertexBuffer} from '../gl/vertex_buffer';
 import type {IndexBuffer} from '../gl/index_buffer';
 import type {UniformValues} from './uniform_binding';
 import type {CircleUniformsType} from './program/circle_program';
-import type {TerrainData} from '../render/terrain';
+
 import {translatePosition} from '../util/util';
 import type {ProjectionData} from '../geo/projection/projection_data';
 
@@ -25,7 +25,7 @@ type TileRenderState = {
     layoutVertexBuffer: VertexBuffer;
     indexBuffer: IndexBuffer;
     uniformValues: UniformValues<CircleUniformsType>;
-    terrainData: TerrainData;
+    terrainData: any;
     projectionData: ProjectionData;
 };
 

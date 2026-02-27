@@ -1,18 +1,15 @@
 import {Actor, type ActorTarget, type IActor} from '../util/actor';
 import {StyleLayerIndex} from '../style/style_layer_index';
 import {VectorTileWorkerSource} from './vector_tile_worker_source';
-import {RasterDEMTileWorkerSource} from './raster_dem_tile_worker_source';
 import {rtlWorkerPlugin, type RTLTextPlugin} from './rtl_text_plugin_worker';
-import {GeoJSONWorkerSource, type LoadGeoJSONParameters} from './geojson_worker_source';
 import {isWorker} from '../util/util';
 import {addProtocol, removeProtocol} from './protocol_crud';
-import {initWasmDecoder} from './vector_tile_wasm';
+import {initWasmDecoder, setGeneration} from './vector_tile_wasm';
 import {type PluginState} from './rtl_text_plugin_status';
 import type {
     WorkerSource,
     WorkerSourceConstructor,
     WorkerTileParameters,
-    WorkerDEMTileParameters,
     TileParameters
 } from '../source/worker_source';
 
@@ -20,8 +17,6 @@ import type {WorkerGlobalScopeInterface} from '../util/web_worker';
 import type {LayerSpecification} from '@maplibre/maplibre-gl-style-spec';
 import {
     MessageType,
-    type ClusterIDAndSource,
-    type GetClusterLeavesParams,
     type RemoveSourceParams,
     type UpdateLayersParameters
 } from '../util/actor_messages';
@@ -48,17 +43,6 @@ export default class Worker {
             };
         };
     };
-    /**
-     * This holds a cache for the already created DEM worker source instances.
-     * The cache is build with the following hierarchy:
-     * [mapId][sourceType]: DEM worker source instance
-     * sourceType can be 'raster-dem' for example
-     */
-    demWorkerSources: {
-        [_: string]: {
-            [_: string]: RasterDEMTileWorkerSource;
-        };
-    };
     referrer: string;
     globalStates: Map<string, Record<string, any>>;
 
@@ -70,7 +54,6 @@ export default class Worker {
         this.availableImages = {};
 
         this.workerSources = {};
-        this.demWorkerSources = {};
         this.externalWorkerSourceTypes = {};
 
         this.globalStates = new Map<string, Record<string, any>>();
@@ -90,34 +73,6 @@ export default class Worker {
 
             rtlWorkerPlugin.setMethods(rtlTextPlugin);
         };
-
-        this.actor.registerMessageHandler(MessageType.loadDEMTile, (mapId: string, params: WorkerDEMTileParameters) => {
-            return this._getDEMWorkerSource(mapId, params.source).loadTile(params);
-        });
-
-        this.actor.registerMessageHandler(MessageType.removeDEMTile, async (mapId: string, params: TileParameters) => {
-            this._getDEMWorkerSource(mapId, params.source).removeTile(params);
-        });
-
-        this.actor.registerMessageHandler(MessageType.getClusterExpansionZoom, async (mapId: string, params: ClusterIDAndSource) => {
-            return (this._getWorkerSource(mapId, params.type, params.source) as GeoJSONWorkerSource).getClusterExpansionZoom(params);
-        });
-
-        this.actor.registerMessageHandler(MessageType.getClusterChildren, async (mapId: string, params: ClusterIDAndSource) => {
-            return (this._getWorkerSource(mapId, params.type, params.source) as GeoJSONWorkerSource).getClusterChildren(params);
-        });
-
-        this.actor.registerMessageHandler(MessageType.getClusterLeaves, async (mapId: string, params: GetClusterLeavesParams) => {
-            return (this._getWorkerSource(mapId, params.type, params.source) as GeoJSONWorkerSource).getClusterLeaves(params);
-        });
-
-        this.actor.registerMessageHandler(MessageType.loadData, (mapId: string, params: LoadGeoJSONParameters) => {
-            return (this._getWorkerSource(mapId, params.type, params.source) as GeoJSONWorkerSource).loadData(params);
-        });
-
-        this.actor.registerMessageHandler(MessageType.getData, (mapId: string, params: LoadGeoJSONParameters) => {
-            return (this._getWorkerSource(mapId, params.type, params.source) as GeoJSONWorkerSource).getData();
-        });
 
         this.actor.registerMessageHandler(MessageType.loadTile, (mapId: string, params: WorkerTileParameters) => {
             return this._getWorkerSource(mapId, params.type, params.source).loadTile(params);
@@ -154,7 +109,6 @@ export default class Worker {
             delete this.layerIndexes[mapId];
             delete this.availableImages[mapId];
             delete this.workerSources[mapId];
-            delete this.demWorkerSources[mapId];
             this.globalStates.delete(mapId);
         });
 
@@ -187,6 +141,10 @@ export default class Worker {
 
         this.actor.registerMessageHandler(MessageType.setLayers, async (mapId: string, params: Array<LayerSpecification>) => {
             this._getLayerIndex(mapId).replace(params, this._getGlobalState(mapId));
+        });
+
+        this.actor.registerMessageHandler(MessageType.setGeneration, async (_mapId: string, params: {generation: number}) => {
+            setGeneration(params.generation);
         });
     }
 
@@ -258,9 +216,6 @@ export default class Worker {
                 case 'vector':
                     this.workerSources[mapId][sourceType][sourceName] = new VectorTileWorkerSource(actor, this._getLayerIndex(mapId), this._getAvailableImages(mapId));
                     break;
-                case 'geojson':
-                    this.workerSources[mapId][sourceType][sourceName] = new GeoJSONWorkerSource(actor, this._getLayerIndex(mapId), this._getAvailableImages(mapId));
-                    break;
                 default:
                     this.workerSources[mapId][sourceType][sourceName] = new (this.externalWorkerSourceTypes[sourceType])(actor, this._getLayerIndex(mapId), this._getAvailableImages(mapId));
                     break;
@@ -268,23 +223,6 @@ export default class Worker {
         }
 
         return this.workerSources[mapId][sourceType][sourceName];
-    }
-
-    /**
-     * This is basically a lazy initialization of a worker per mapId and source
-     * @param mapId - the mapId
-     * @param sourceType - the source type - 'raster-dem' for example
-     * @returns a new instance or a cached one
-     */
-    private _getDEMWorkerSource(mapId: string, sourceType: string) {
-        if (!this.demWorkerSources[mapId])
-            this.demWorkerSources[mapId] = {};
-
-        if (!this.demWorkerSources[mapId][sourceType]) {
-            this.demWorkerSources[mapId][sourceType] = new RasterDEMTileWorkerSource();
-        }
-
-        return this.demWorkerSources[mapId][sourceType];
     }
 }
 
