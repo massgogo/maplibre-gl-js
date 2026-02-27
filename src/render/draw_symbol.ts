@@ -39,6 +39,9 @@ import type {TextAnchor} from '../style/style_layer/variable_text_anchor';
 import {getGlCoordMatrix, getPerspectiveRatio, getPitchedLabelPlaneMatrix, hideGlyphs, projectWithMatrix, projectTileCoordinatesToClipSpace, projectTileCoordinatesToLabelPlane, type SymbolProjectionContext, updateLineLabels} from '../symbol/projection';
 import {translatePosition} from '../util/util';
 import type {ProjectionData} from '../geo/projection/projection_data';
+import {isWasmReady} from '../source/vector_tile_wasm';
+import {wasmBatchVariableAnchorUpdateRaw} from '../symbol/wasm_geometry';
+import type {SizeData} from '../symbol/symbol_size';
 
 type SymbolTileRenderState = {
     segments: SegmentVector;
@@ -154,8 +157,20 @@ function updateVariableAnchors(coords: Array<OverscaledTileID>,
 
         if (size) {
             const tileScale = Math.pow(2, transform.zoom - tile.tileID.overscaledZ);
-            const getElevation = terrain ? (x: number, y: number) => terrain.getElevation(coord, x, y) : null;
             const translation = translatePosition(transform, tile, translate, translateAnchor);
+
+            // WASM fast path: batch all symbol projections in one call
+            if (isWasmReady() && !terrain) {
+                const handled = wasmUpdateVariableAnchorsForBucket(
+                    bucket, rotateWithMap, pitchWithMap, variableOffsets,
+                    transform, pitchedLabelPlaneMatrix, tileScale, size,
+                    translation, coord.toUnwrapped(),
+                );
+                if (handled) continue;
+            }
+
+            // JS fallback
+            const getElevation = terrain ? (x: number, y: number) => terrain.getElevation(coord, x, y) : null;
             updateVariableAnchorsForBucket(bucket, rotateWithMap, pitchWithMap, variableOffsets,
                 transform, pitchedLabelPlaneMatrix, tileScale, size, updateTextFitIcon, translation, coord.toUnwrapped(), getElevation);
         }
@@ -502,4 +517,140 @@ function drawSymbolElements(
         buffers.indexBuffer, segments, layer.paint,
         painter.transform.zoom, buffers.programConfigurations.get(layer.id),
         buffers.dynamicLayoutVertexBuffer, buffers.opacityVertexBuffer);
+}
+
+// ── WASM-accelerated variable anchor update ─────────────────────────
+
+const SYMBOL_STRIDE = 7;
+const OFFSET_STRIDE = 8;
+
+function wasmUpdateVariableAnchorsForBucket(
+    bucket: SymbolBucket,
+    rotateWithMap: boolean,
+    pitchWithMap: boolean,
+    variableOffsets: {[_ in CrossTileID]: VariableOffset},
+    transform: IReadonlyTransform,
+    pitchedLabelPlaneMatrix: mat4,
+    tileScale: number,
+    size: EvaluatedZoomSize,
+    translation: [number, number],
+    unwrappedTileID: UnwrappedTileID,
+): boolean {
+    const placedSymbols = bucket.text.placedSymbolArray;
+    const numSymbols = placedSymbols.length;
+    if (numSymbols === 0) return true;
+
+    // Pack symbol data
+    const symbolData = new Float64Array(numSymbols * SYMBOL_STRIDE);
+    for (let s = 0; s < numSymbols; s++) {
+        const sym = placedSymbols.get(s);
+        const base = s * SYMBOL_STRIDE;
+        symbolData[base] = sym.anchorX + translation[0];
+        symbolData[base + 1] = sym.anchorY + translation[1];
+        symbolData[base + 2] = sym.numGlyphs;
+        symbolData[base + 3] = sym.crossTileID;
+        symbolData[base + 4] = sym.associatedIconIndex;
+        symbolData[base + 5] = sym.placedOrientation;
+        symbolData[base + 6] = sym.hidden ? 1 : 0;
+    }
+
+    // Pack variable offsets
+    const offsetEntries = Object.entries(variableOffsets);
+    const offsetData = new Float64Array(offsetEntries.length * OFFSET_STRIDE);
+    for (let j = 0; j < offsetEntries.length; j++) {
+        const [crossTileIdStr, offset] = offsetEntries[j];
+        const {horizontalAlign, verticalAlign} = getAnchorAlignment(offset.anchor);
+        const base = j * OFFSET_STRIDE;
+        offsetData[base] = Number(crossTileIdStr);
+        offsetData[base + 1] = offset.width;
+        offsetData[base + 2] = offset.height;
+        offsetData[base + 3] = horizontalAlign;
+        offsetData[base + 4] = verticalAlign;
+        offsetData[base + 5] = offset.textOffset[0];
+        offsetData[base + 6] = offset.textOffset[1];
+        offsetData[base + 7] = offset.textBoxScale;
+    }
+
+    // Pack size data
+    const sizeData = bucket.textSizeData;
+    const kindNum = sizeData.kind === 'constant' ? 0 :
+        sizeData.kind === 'source' ? 1 :
+            sizeData.kind === 'camera' ? 2 : 3;
+    const sizeArr = new Float64Array(3 + numSymbols * 2);
+    sizeArr[0] = kindNum;
+    sizeArr[1] = size.uSize;
+    sizeArr[2] = size.uSizeT;
+    if (sizeData.kind === 'source' || sizeData.kind === 'composite') {
+        for (let s = 0; s < numSymbols; s++) {
+            const sym = placedSymbols.get(s);
+            sizeArr[3 + s * 2] = sym.lowerSize;
+            sizeArr[4 + s * 2] = sym.upperSize;
+        }
+    }
+
+    // Get pos matrix
+    const posMatrix = (transform as any).calculatePosMatrix(unwrappedTileID) as mat4;
+    const posMatArr = new Float64Array(posMatrix as unknown as ArrayLike<number>);
+    const labelMatArr = new Float64Array(pitchedLabelPlaneMatrix as unknown as ArrayLike<number>);
+
+    // Call WASM
+    const result = wasmBatchVariableAnchorUpdateRaw(
+        symbolData, offsetData, posMatArr, labelMatArr, sizeArr,
+        transform.cameraToCenterDistance, pitchWithMap, rotateWithMap,
+        -transform.bearingInRadians, bucket.tilePixelRatio, tileScale,
+        transform.width, transform.height, ONE_EM, bucket.allowVerticalPlacement,
+    );
+    if (!result) return false;
+
+    // Write results into dynamicTextLayoutVertexArray
+    const dynamicTextLayoutVertexArray = bucket.text.dynamicLayoutVertexArray;
+    const dynamicIconLayoutVertexArray = bucket.icon.dynamicLayoutVertexArray;
+    dynamicTextLayoutVertexArray.clear();
+    const placedTextShifts: Record<number, {shiftedAnchor: Point; angle: number}> = {};
+
+    const updateTextFitIcon = bucket.hasIconData();
+
+    for (let s = 0; s < numSymbols; s++) {
+        const outBase = s * 3;
+        const shiftedX = result[outBase];
+        const shiftedY = result[outBase + 1];
+        const angle = result[outBase + 2];
+
+        const sym = placedSymbols.get(s);
+        if (isNaN(shiftedX)) {
+            hideGlyphs(sym.numGlyphs, dynamicTextLayoutVertexArray);
+        } else {
+            const shiftedAnchor = new Point(shiftedX, shiftedY);
+            for (let g = 0; g < sym.numGlyphs; g++) {
+                addDynamicAttributes(dynamicTextLayoutVertexArray, shiftedAnchor, angle);
+            }
+            if (updateTextFitIcon && sym.associatedIconIndex >= 0) {
+                placedTextShifts[sym.associatedIconIndex] = {shiftedAnchor, angle};
+            }
+        }
+    }
+
+    if (updateTextFitIcon) {
+        dynamicIconLayoutVertexArray.clear();
+        const placedIcons = bucket.icon.placedSymbolArray;
+        for (let i = 0; i < placedIcons.length; i++) {
+            const placedIcon = placedIcons.get(i);
+            if (placedIcon.hidden) {
+                hideGlyphs(placedIcon.numGlyphs, dynamicIconLayoutVertexArray);
+            } else {
+                const shift = placedTextShifts[i];
+                if (!shift) {
+                    hideGlyphs(placedIcon.numGlyphs, dynamicIconLayoutVertexArray);
+                } else {
+                    for (let g = 0; g < placedIcon.numGlyphs; g++) {
+                        addDynamicAttributes(dynamicIconLayoutVertexArray, shift.shiftedAnchor, shift.angle);
+                    }
+                }
+            }
+        }
+        bucket.icon.dynamicLayoutVertexBuffer.updateData(dynamicIconLayoutVertexArray);
+    }
+    bucket.text.dynamicLayoutVertexBuffer.updateData(dynamicTextLayoutVertexArray);
+
+    return true;
 }

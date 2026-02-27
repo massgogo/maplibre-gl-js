@@ -38,6 +38,23 @@ let wasmModule: {
     project_batch: (mat: Float64Array, points: Float64Array, width: number, height: number, padding: number, cameraToCenterDistance: number) => Float64Array;
     compute_icon_quads: (top: number, right: number, bottom: number, left: number, icon_rotate: number) => Float64Array;
     batch_path_lerp: (points: Float64Array, distances: Float64Array, t_values: Float64Array, padding: number) => Float64Array;
+    batch_variable_anchor_update: (
+        symbols: Float64Array,
+        offsets: Float64Array,
+        pos_matrix: Float64Array,
+        pitched_label_plane_matrix: Float64Array,
+        size_data: Float64Array,
+        camera_to_center_dist: number,
+        pitch_with_map: boolean,
+        rotate_with_map: boolean,
+        bearing: number,
+        tile_pixel_ratio: number,
+        tile_scale: number,
+        viewport_width: number,
+        viewport_height: number,
+        one_em: number,
+        allow_vertical_placement: boolean,
+    ) => Float64Array;
     WasmGridIndex: {
         new(width: number, height: number, cell_size: number): WasmGridIndexInstance;
     };

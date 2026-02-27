@@ -494,3 +494,37 @@ export function wasmBatchPathLerp(
     }
     return out;
 }
+
+// ── Batch variable anchor update (raw WASM call) ────────────────────
+
+/**
+ * Raw WASM call for batch variable anchor update.
+ * Returns Float64Array of [shiftedX, shiftedY, angle, ...] per symbol,
+ * or null if WASM is not available.
+ */
+export function wasmBatchVariableAnchorUpdateRaw(
+    symbolData: Float64Array,
+    offsetData: Float64Array,
+    posMatArr: Float64Array,
+    labelMatArr: Float64Array,
+    sizeArr: Float64Array,
+    cameraToCenterDistance: number,
+    pitchWithMap: boolean,
+    rotateWithMap: boolean,
+    bearing: number,
+    tilePixelRatio: number,
+    tileScale: number,
+    viewportWidth: number,
+    viewportHeight: number,
+    oneEm: number,
+    allowVerticalPlacement: boolean,
+): Float64Array | null {
+    const mod = getWasmModule();
+    if (!mod) return null;
+    return mod.batch_variable_anchor_update(
+        symbolData, offsetData, posMatArr, labelMatArr, sizeArr,
+        cameraToCenterDistance, pitchWithMap, rotateWithMap, bearing,
+        tilePixelRatio, tileScale, viewportWidth, viewportHeight,
+        oneEm, allowVerticalPlacement,
+    );
+}
