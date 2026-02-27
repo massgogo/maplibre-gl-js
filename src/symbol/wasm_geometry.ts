@@ -393,13 +393,41 @@ export class WasmCollisionGrid {
 
     hitTest(x1: number, y1: number, x2: number, y2: number, overlapMode: OverlapMode, predicate?: (key: WasmGridKey) => boolean): boolean {
         // If there's a predicate, extract the group ID it filters on
-        const filterGroupId = predicate ? this._extractGroupId(predicate) : -1;
+        const filterGroupId = predicate ? this.extractGroupId(predicate) : -1;
         return this._inner.hit_test(x1, y1, x2, y2, overlapToU8(overlapMode), filterGroupId);
     }
 
     hitTestCircle(x: number, y: number, radius: number, overlapMode: OverlapMode, predicate?: (key: WasmGridKey) => boolean): boolean {
-        const filterGroupId = predicate ? this._extractGroupId(predicate) : -1;
+        const filterGroupId = predicate ? this.extractGroupId(predicate) : -1;
         return this._inner.hit_test_circle(x, y, radius, overlapToU8(overlapMode), filterGroupId);
+    }
+
+    placeCollisionBox(
+        anchorX: number, anchorY: number,
+        boxX1: number, boxY1: number, boxX2: number, boxY2: number,
+        shiftX: number, shiftY: number,
+        posMatrix: Float64Array,
+        textPixelRatio: number,
+        viewportWidth: number, viewportHeight: number,
+        viewportPadding: number,
+        cameraToCenterDist: number,
+        perspectiveRatioCutoff: number,
+        screenRightBoundary: number, screenBottomBoundary: number,
+        gridRightBoundary: number, gridBottomBoundary: number,
+        overlapMode: OverlapMode, filterGroupId: number,
+    ): Float64Array {
+        return this._inner.place_collision_box(
+            anchorX, anchorY,
+            boxX1, boxY1, boxX2, boxY2,
+            shiftX, shiftY,
+            posMatrix,
+            textPixelRatio,
+            viewportWidth, viewportHeight,
+            viewportPadding, cameraToCenterDist, perspectiveRatioCutoff,
+            screenRightBoundary, screenBottomBoundary,
+            gridRightBoundary, gridBottomBoundary,
+            overlapToU8(overlapMode), filterGroupId,
+        );
     }
 
     query(x1: number, y1: number, x2: number, y2: number): WasmGridQueryResult[] {
@@ -425,7 +453,7 @@ export class WasmCollisionGrid {
      * We can't pass a JS closure to WASM, but we CAN call it once
      * with a probe key to discover the expected group ID.
      */
-    private _extractGroupId(predicate: (key: WasmGridKey) => boolean): number {
+    extractGroupId(predicate: (key: WasmGridKey) => boolean): number {
         // Try common group IDs
         for (let id = 0; id < 256; id++) {
             const probeKey: WasmGridKey = {
@@ -493,6 +521,109 @@ export function wasmBatchPathLerp(
         out.push(new Point(result[i], result[i + 1]));
     }
     return out;
+}
+
+// ── Generate collision circles (raw WASM call) ─────────────────────
+
+/**
+ * WASM-accelerated collision circle generation.
+ * Replaces the geometry computation in placeCollisionCircles (steps 1-6).
+ *
+ * Returns { perspectiveRatio, circles: [cx, cy, r, ...] } or null if WASM
+ * is unavailable or placement fails.
+ */
+export function wasmGenerateCollisionCircles(
+    symbolData: Float64Array,
+    lineVertices: Float64Array,
+    glyphOffsets: Float64Array,
+    labelPlaneMatrix: Float64Array,
+    labelPlaneMatrixInverse: Float64Array,
+    posMatrix: Float64Array,
+    fontSize: number,
+    cameraToCenterDist: number,
+    pitchWithMap: boolean,
+    viewportWidth: number,
+    viewportHeight: number,
+    circlePixelDiameter: number,
+    textPixelPadding: number,
+    translationX: number,
+    translationY: number,
+    screenRightBoundary: number,
+    screenBottomBoundary: number,
+    viewportPadding: number,
+): {perspectiveRatio: number; circles: number[]} | null {
+    const mod = getWasmModule();
+    if (!mod) return null;
+
+    const result = mod.generate_collision_circles(
+        symbolData, lineVertices, glyphOffsets,
+        labelPlaneMatrix, labelPlaneMatrixInverse, posMatrix,
+        fontSize, cameraToCenterDist, pitchWithMap,
+        viewportWidth, viewportHeight,
+        circlePixelDiameter, textPixelPadding,
+        translationX, translationY,
+        screenRightBoundary, screenBottomBoundary, viewportPadding,
+    );
+
+    if (result.length === 0) {
+        return null; // Placement failed
+    }
+
+    if (result.length === 1 && result[0] < 0) {
+        return null; // Behind camera
+    }
+
+    const perspectiveRatio = result[0];
+    const numCircles = result[1];
+    // Circles are packed as [cx, cy, r, ...] starting at index 2
+    // We need to output them as [cx, cy, r, 0, ...] (4 values per circle)
+    // to match the format expected by the collision detection loop
+    const circles: number[] = [];
+    for (let i = 0; i < numCircles; i++) {
+        const base = 2 + i * 3;
+        circles.push(result[base], result[base + 1], result[base + 2], 0);
+    }
+
+    return {perspectiveRatio, circles};
+}
+
+// ── Batch update line labels (raw WASM call) ────────────────────────
+
+/**
+ * Raw WASM call for batch line label update.
+ * Returns Float64Array of [x, y, angle, ...] per glyph (3 values per glyph),
+ * or null if WASM is not available.
+ * Hidden glyphs have [-Infinity, -Infinity, 0].
+ */
+export function wasmBatchUpdateLineLabelsRaw(
+    symbolData: Float64Array,
+    lineVertices: Float64Array,
+    glyphOffsets: Float64Array,
+    projMatrix: Float64Array,
+    projMatrixInverse: Float64Array,
+    posMatrix: Float64Array,
+    sizeData: Float64Array,
+    cameraToCenterDist: number,
+    pitchWithMap: boolean,
+    keepUpright: boolean,
+    rotateToLine: boolean,
+    viewportWidth: number,
+    viewportHeight: number,
+    aspectRatio: number,
+    translationX: number,
+    translationY: number,
+    clipX: number,
+    clipY: number,
+): Float64Array | null {
+    const mod = getWasmModule();
+    if (!mod) return null;
+    return mod.batch_update_line_labels(
+        symbolData, lineVertices, glyphOffsets,
+        projMatrix, projMatrixInverse, posMatrix, sizeData,
+        cameraToCenterDist, pitchWithMap, keepUpright, rotateToLine,
+        viewportWidth, viewportHeight, aspectRatio,
+        translationX, translationY, clipX, clipY,
+    );
 }
 
 // ── Batch variable anchor update (raw WASM call) ────────────────────

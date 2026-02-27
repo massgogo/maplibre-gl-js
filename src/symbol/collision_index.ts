@@ -18,7 +18,8 @@ import {type OverscaledTileID, type UnwrappedTileID} from '../tile/tile_id';
 import {type PointProjection, type SymbolProjectionContext, getTileSkewVectors, pathSlicedToLongestUnoccluded, placeFirstAndLastGlyph, projectPathSpecialProjection, xyTransformMat4} from '../symbol/projection';
 import {clamp, getAABB} from '../util/util';
 import {Bounds} from '../geo/bounds';
-import {wasmProjectBatch, WasmCollisionGrid, type WasmGridKey} from './wasm_geometry';
+import {wasmGenerateCollisionCircles, wasmProjectBatch, WasmCollisionGrid, type WasmGridKey} from './wasm_geometry';
+import {isWasmReady} from '../source/vector_tile_wasm';
 
 // When a symbol crosses the edge that causes it to be included in
 // collision detection, it will cause changes in the symbols around
@@ -113,6 +114,35 @@ export class CollisionIndex {
         shift?: Point,
         simpleProjectionMatrix?: mat4,
     ): PlacedBox {
+        // ── WASM fast path ──────────────────────────────────────────
+        // Merges project + box compute + hitTest into one FFI call.
+        // Only for common case: !pitchWithMap && !rotateWithMap && simpleProjectionMatrix && !getElevation
+        if (!pitchWithMap && !rotateWithMap && simpleProjectionMatrix && !getElevation && isWasmReady()) {
+            const filterGroupId = collisionGroupPredicate ? this.grid.extractGroupId(collisionGroupPredicate) : -1;
+            const result = this.grid.placeCollisionBox(
+                collisionBox.anchorPointX + translation[0],
+                collisionBox.anchorPointY + translation[1],
+                collisionBox.x1, collisionBox.y1, collisionBox.x2, collisionBox.y2,
+                shift ? shift.x : 0, shift ? shift.y : 0,
+                new Float64Array(simpleProjectionMatrix),
+                textPixelRatio,
+                this.transform.width, this.transform.height,
+                viewportPadding,
+                this.transform.cameraToCenterDistance,
+                this.perspectiveRatioCutoff,
+                this.screenRightBoundary, this.screenBottomBoundary,
+                this.gridRightBoundary, this.gridBottomBoundary,
+                overlapMode, filterGroupId,
+            );
+            return {
+                box: [result[2], result[3], result[4], result[5]],
+                placeable: result[0] === 1.0,
+                offscreen: result[1] === 1.0,
+                occluded: false, // !pitchWithMap → never occluded for mercator
+            };
+        }
+
+        // ── JS fallback (pitchWithMap / rotateWithMap / getElevation) ──
         const x = collisionBox.anchorPointX + translation[0];
         const y = collisionBox.anchorPointY + translation[1];
         const projectedPoint = this.projectAndGetPerspectiveRatio(
@@ -198,6 +228,69 @@ export class CollisionIndex {
         translation: [number, number],
         getElevation: (x: number, y: number) => number
     ): PlacedCircles {
+        // ── WASM fast path ──────────────────────────────────────────
+        // calculatePosMatrix is available on MercatorTransform (our only projection).
+        // We use it to get the posMatrix for WASM. Falls through to JS path if unavailable.
+        if (isWasmReady() && !getElevation && (this.transform as any).calculatePosMatrix) {
+            const posMatrix = (this.transform as any).calculatePosMatrix(unwrappedTileID) as mat4;
+            // mat4 may be Float32Array — widen to Float64Array for WASM
+            const posMatF64 = new Float64Array(posMatrix);
+            const labelMatF64 = new Float64Array(pitchedLabelPlaneMatrix);
+            const labelMatInv = mat4.create();
+            mat4.invert(labelMatInv, pitchedLabelPlaneMatrix);
+            const labelMatInvF64 = new Float64Array(labelMatInv);
+
+            // Pack symbol data: [anchorX, anchorY, glyphStartIndex, numGlyphs,
+            //   lineStartIndex, lineLength, segment, lineOffsetX, lineOffsetY]
+            const symbolData = new Float64Array([
+                symbol.anchorX, symbol.anchorY,
+                symbol.glyphStartIndex, symbol.numGlyphs,
+                symbol.lineStartIndex, symbol.lineLength,
+                symbol.segment,
+                symbol.lineOffsetX, symbol.lineOffsetY,
+            ]);
+
+            // Pack line vertices as flat [x, y, ...]
+            const numLineVerts = lineVertexArray.length;
+            const lineVerts = new Float64Array(numLineVerts * 2);
+            for (let i = 0; i < numLineVerts; i++) {
+                lineVerts[i * 2] = lineVertexArray.getx(i);
+                lineVerts[i * 2 + 1] = lineVertexArray.gety(i);
+            }
+
+            // Pack glyph offsets as flat [offsetX, ...]
+            const numGlyphs = symbol.glyphStartIndex + symbol.numGlyphs;
+            const glyphOffs = new Float64Array(numGlyphs);
+            for (let i = 0; i < numGlyphs; i++) {
+                glyphOffs[i] = glyphOffsetArray.getoffsetX(i);
+            }
+
+            const wasmResult = wasmGenerateCollisionCircles(
+                symbolData, lineVerts, glyphOffs,
+                labelMatF64, labelMatInvF64, posMatF64,
+                fontSize, this.transform.cameraToCenterDistance,
+                pitchWithMap,
+                this.transform.width, this.transform.height,
+                circlePixelDiameter, textPixelPadding,
+                translation[0], translation[1],
+                this.screenRightBoundary, this.screenBottomBoundary,
+                viewportPadding,
+            );
+
+            if (wasmResult) {
+                return this._testCollisionCircles(
+                    wasmResult.circles,
+                    wasmResult.perspectiveRatio,
+                    overlapMode,
+                    showCollisionCircles,
+                    collisionGroupPredicate,
+                );
+            }
+            // wasmResult null = placement failed (can't place first/last glyph)
+            return {circles: [], offscreen: false, collisionDetected: false};
+        }
+
+        // ── JS fallback path ────────────────────────────────────────
         const placedCollisionCircles = [];
 
         const tileUnitAnchorPoint = new Point(symbol.anchorX, symbol.anchorY);
@@ -347,6 +440,54 @@ export class CollisionIndex {
 
         return {
             circles: ((!showCollisionCircles && collisionDetected) || !inGrid || perspectiveRatio < this.perspectiveRatioCutoff) ? [] : placedCollisionCircles,
+            offscreen: entirelyOffscreen,
+            collisionDetected
+        };
+    }
+
+    /**
+     * Shared collision detection loop for pre-computed circles.
+     * Used by both WASM and JS paths.
+     * circles format: [cx, cy, radius, 0, cx, cy, radius, 0, ...]
+     */
+    private _testCollisionCircles(
+        circles: number[],
+        perspectiveRatio: number,
+        overlapMode: OverlapMode,
+        showCollisionCircles: boolean,
+        collisionGroupPredicate: (key: FeatureKey) => boolean,
+    ): PlacedCircles {
+        let collisionDetected = false;
+        let inGrid = false;
+        let entirelyOffscreen = true;
+
+        for (let k = 0; k < circles.length; k += 4) {
+            const centerX = circles[k];
+            const centerY = circles[k + 1];
+            const radius = circles[k + 2];
+
+            const x1 = centerX - radius;
+            const y1 = centerY - radius;
+            const x2 = centerX + radius;
+            const y2 = centerY + radius;
+
+            entirelyOffscreen = entirelyOffscreen && this.isOffscreen(x1, y1, x2, y2);
+            inGrid = inGrid || this.isInsideGrid(x1, y1, x2, y2);
+
+            if (overlapMode !== 'always' && this.grid.hitTestCircle(centerX, centerY, radius, overlapMode, collisionGroupPredicate)) {
+                collisionDetected = true;
+                if (!showCollisionCircles) {
+                    return {
+                        circles: [],
+                        offscreen: false,
+                        collisionDetected
+                    };
+                }
+            }
+        }
+
+        return {
+            circles: ((!showCollisionCircles && collisionDetected) || !inGrid || perspectiveRatio < this.perspectiveRatioCutoff) ? [] : circles,
             offscreen: entirelyOffscreen,
             collisionDetected
         };

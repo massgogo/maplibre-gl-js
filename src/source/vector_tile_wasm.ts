@@ -55,6 +55,46 @@ let wasmModule: {
         one_em: number,
         allow_vertical_placement: boolean,
     ) => Float64Array;
+    batch_update_line_labels: (
+        symbols: Float64Array,
+        line_vertices: Float64Array,
+        glyph_offsets: Float64Array,
+        proj_matrix: Float64Array,
+        proj_matrix_inverse: Float64Array,
+        pos_matrix: Float64Array,
+        size_data: Float64Array,
+        camera_to_center_dist: number,
+        pitch_with_map: boolean,
+        keep_upright: boolean,
+        rotate_to_line: boolean,
+        viewport_width: number,
+        viewport_height: number,
+        aspect_ratio: number,
+        translation_x: number,
+        translation_y: number,
+        clip_x: number,
+        clip_y: number,
+    ) => Float64Array;
+    generate_collision_circles: (
+        symbol: Float64Array,
+        line_vertices: Float64Array,
+        glyph_offsets: Float64Array,
+        label_plane_matrix: Float64Array,
+        label_plane_matrix_inverse: Float64Array,
+        pos_matrix: Float64Array,
+        font_size: number,
+        camera_to_center_dist: number,
+        pitch_with_map: boolean,
+        viewport_width: number,
+        viewport_height: number,
+        circle_pixel_diameter: number,
+        text_pixel_padding: number,
+        translation_x: number,
+        translation_y: number,
+        screen_right_boundary: number,
+        screen_bottom_boundary: number,
+        viewport_padding: number,
+    ) => Float64Array;
     WasmGridIndex: {
         new(width: number, height: number, cell_size: number): WasmGridIndexInstance;
     };
@@ -68,6 +108,20 @@ export interface WasmGridIndexInstance {
     hit_test_circle(x: number, y: number, radius: number, overlap_mode: number, filter_group_id: number): boolean;
     query(x1: number, y1: number, x2: number, y2: number): Uint32Array;
     keys_length(): number;
+    place_collision_box(
+        anchor_x: number, anchor_y: number,
+        box_x1: number, box_y1: number, box_x2: number, box_y2: number,
+        shift_x: number, shift_y: number,
+        pos_matrix: Float64Array,
+        text_pixel_ratio: number,
+        viewport_width: number, viewport_height: number,
+        viewport_padding: number,
+        camera_to_center_dist: number,
+        perspective_ratio_cutoff: number,
+        screen_right_boundary: number, screen_bottom_boundary: number,
+        grid_right_boundary: number, grid_bottom_boundary: number,
+        overlap_mode: number, filter_group_id: number,
+    ): Float64Array;
     free(): void;
 }
 
