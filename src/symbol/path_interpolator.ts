@@ -1,5 +1,6 @@
 import {clamp} from '../util/util';
 import type Point from '@mapbox/point-geometry';
+import {wasmBatchPathLerp} from './wasm_geometry';
 
 export class PathInterpolator {
     points: Array<Point>;
@@ -51,5 +52,15 @@ export class PathInterpolator {
         const segmentT = segmentLength > 0 ? (distToTarget - distOfPrevIdx) / segmentLength : 0;
 
         return this.points[idxOfPrevPoint].mult(1.0 - segmentT).add(this.points[currentIndex].mult(segmentT));
+    }
+
+    /**
+     * Batch-interpolate multiple t values in a single WASM call.
+     * Falls back to sequential lerp() if WASM is unavailable.
+     */
+    batchLerp(tValues: number[]): Point[] {
+        if (this.points.length === 0) return [];
+
+        return wasmBatchPathLerp(this.points, this._distances, tValues, this.padding);
     }
 }

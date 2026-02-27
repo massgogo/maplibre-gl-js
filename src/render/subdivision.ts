@@ -4,6 +4,7 @@ import {type CanonicalTileID} from '../tile/tile_id';
 import earcut from 'earcut';
 import {SubdivisionGranularityExpression, SubdivisionGranularitySetting} from './subdivision_granularity_settings';
 import {register} from '../util/web_worker_transfer';
+import {wasmSubdivideVertexLine} from '../symbol/wasm_geometry';
 
 register('SubdivisionGranularityExpression', SubdivisionGranularityExpression);
 register('SubdivisionGranularitySetting', SubdivisionGranularitySetting);
@@ -714,114 +715,7 @@ export function subdivideVertexLine(linePoints: Array<Point>, granularity: numbe
         return [];
     }
 
-    if (linePoints.length < 2) {
-        return [];
-    }
-
-    // Generate an extra line segment between the input array's first and last points,
-    // but only if isRing=true AND the first and last points actually differ.
-    const first = linePoints[0];
-    const last = linePoints[linePoints.length - 1];
-    const addLastToFirstSegment = isRing && (first.x !== last.x || first.y !== last.y);
-
-    if (granularity < 2) {
-        if (addLastToFirstSegment) {
-            return [...linePoints, linePoints[0]];
-        } else {
-            return [...linePoints];
-        }
-    }
-
-    const cellSize = Math.floor(EXTENT / granularity);
-    const finalLineVertices: Array<Point> = [];
-
-    finalLineVertices.push(new Point(linePoints[0].x, linePoints[0].y));
-
-    // Iterate over all input lines
-    const totalPoints = linePoints.length;
-    const lastIndex = addLastToFirstSegment ? totalPoints : (totalPoints - 1);
-    for (let pointIndex = 0; pointIndex < lastIndex; pointIndex++) {
-        const linePoint0 = linePoints[pointIndex];
-        const linePoint1 = pointIndex < (totalPoints - 1) ? linePoints[pointIndex + 1] : linePoints[0];
-        const lineVertex0x = linePoint0.x;
-        const lineVertex0y = linePoint0.y;
-        const lineVertex1x = linePoint1.x;
-        const lineVertex1y = linePoint1.y;
-
-        const dirXnonZero = lineVertex0x !== lineVertex1x;
-        const dirYnonZero = lineVertex0y !== lineVertex1y;
-
-        if (!dirXnonZero && !dirYnonZero) {
-            continue;
-        }
-
-        const dirX = lineVertex1x - lineVertex0x;
-        const dirY = lineVertex1y - lineVertex0y;
-        const absDirX = Math.abs(dirX);
-        const absDirY = Math.abs(dirY);
-
-        let lastPointX = lineVertex0x;
-        let lastPointY = lineVertex0y;
-
-        // Walk along the line segment from start to end. In every step,
-        // find out the distance from start until the line intersects either the X-parallel or Y-parallel subdivision axis.
-        // Pick the closer intersection, add it to the final line points and consider that point the new start of the line.
-        // But also make sure the intersection point does not lie beyond the end of the line.
-        // If none of the intersection points is closer than line end, add the endpoint to the final line and break the loop.
-
-        while (true) {
-            const nextBoundaryX = dirX > 0 ?
-                ((Math.floor(lastPointX / cellSize) + 1) * cellSize) :
-                ((Math.ceil(lastPointX / cellSize) - 1) * cellSize);
-            const nextBoundaryY = dirY > 0 ?
-                ((Math.floor(lastPointY / cellSize) + 1) * cellSize) :
-                ((Math.ceil(lastPointY / cellSize) - 1) * cellSize);
-            const axisDistanceToBoundaryX = Math.abs(lastPointX - nextBoundaryX);
-            const axisDistanceToBoundaryY = Math.abs(lastPointY - nextBoundaryY);
-
-            const axisDistanceToEndX = Math.abs(lastPointX - lineVertex1x);
-            const axisDistanceToEndY = Math.abs(lastPointY - lineVertex1y);
-
-            const realDistanceToBoundaryX = dirXnonZero ? axisDistanceToBoundaryX / absDirX : Number.POSITIVE_INFINITY;
-            const realDistanceToBoundaryY = dirYnonZero ? axisDistanceToBoundaryY / absDirY : Number.POSITIVE_INFINITY;
-
-            if ((axisDistanceToEndX <= axisDistanceToBoundaryX || !dirXnonZero) &&
-            (axisDistanceToEndY <= axisDistanceToBoundaryY || !dirYnonZero)) {
-                break;
-            }
-
-            if ((realDistanceToBoundaryX < realDistanceToBoundaryY && dirXnonZero) || !dirYnonZero) {
-                // We hit the X cell boundary first
-                // Always consider the X cell hit if Y dir is zero
-                lastPointX = nextBoundaryX;
-                lastPointY = lastPointY + dirY * realDistanceToBoundaryX;
-                const next = new Point(lastPointX, Math.round(lastPointY));
-
-                // Do not add the next vertex if it is equal to the last added vertex
-                if (finalLineVertices[finalLineVertices.length - 1].x !== next.x ||
-                    finalLineVertices[finalLineVertices.length - 1].y !== next.y) {
-                    finalLineVertices.push(next);
-                }
-            } else {
-                lastPointX = lastPointX + dirX * realDistanceToBoundaryY;
-                lastPointY = nextBoundaryY;
-                const next = new Point(Math.round(lastPointX), lastPointY);
-
-                if (finalLineVertices[finalLineVertices.length - 1].x !== next.x ||
-                    finalLineVertices[finalLineVertices.length - 1].y !== next.y) {
-                    finalLineVertices.push(next);
-                }
-            }
-        }
-
-        const last = new Point(lineVertex1x, lineVertex1y);
-        if (finalLineVertices[finalLineVertices.length - 1].x !== last.x ||
-            finalLineVertices[finalLineVertices.length - 1].y !== last.y) {
-            finalLineVertices.push(last);
-        }
-    }
-
-    return finalLineVertices;
+    return wasmSubdivideVertexLine(linePoints, granularity, EXTENT, isRing);
 }
 
 /**

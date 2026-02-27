@@ -1,7 +1,5 @@
 import {Anchor} from './anchor';
 
-import {getAnchors, getCenterAnchor} from './get_anchors';
-import {clipLine} from './clip_line';
 import {shapeText, shapeIcon, WritingMode, fitIconToText} from './shaping';
 import {getGlyphQuads, getIconQuads} from './quads';
 import {CollisionFeature} from './collision_feature';
@@ -10,7 +8,6 @@ import {
     allowsVerticalWritingMode,
     allowsLetterSpacing
 } from '../util/script_detection';
-import {findPoleOfInaccessibility} from '../util/find_pole_of_inaccessibility';
 import {EXTENT} from '../data/extent';
 import {SymbolBucket} from '../data/bucket/symbol_bucket';
 import {EvaluationParameters} from '../style/evaluation_parameters';
@@ -34,6 +31,7 @@ import {type VariableAnchorOffsetCollection, classifyRings} from '@maplibre/mapl
 import {getTextVariableAnchorOffset, evaluateVariableOffset, INVALID_TEXT_OFFSET, type TextAnchor, TextAnchorEnum} from '../style/style_layer/variable_text_anchor';
 import {subdivideVertexLine} from '../render/subdivision';
 import type {SubdivisionGranularitySetting} from '../render/subdivision_granularity_settings';
+import {wasmClipLine, wasmFindPoleOfInaccessibility, wasmGetAnchors, wasmGetCenterAnchor} from './wasm_geometry';
 
 // The symbol layout process needs `text-size` evaluated at up to five different zoom levels, and
 // `icon-size` at up to three:
@@ -351,20 +349,24 @@ function addFeature(bucket: SymbolBucket,
     };
 
     if (symbolPlacement === 'line') {
-        for (const line of clipLine(feature.geometry, 0, 0, EXTENT, EXTENT)) {
+        const clippedLines = wasmClipLine(feature.geometry, 0, 0, EXTENT, EXTENT);
+        for (const line of clippedLines) {
             const subdividedLine = subdivideVertexLine(line, granularity);
-            const anchors = getAnchors(
-                subdividedLine,
-                symbolMinDistance,
-                textMaxAngle,
-                shapedTextOrientations.vertical || defaultHorizontalShaping,
-                shapedIcon,
-                glyphSize,
-                textMaxBoxScale,
-                bucket.overscaling,
-                EXTENT
+            const shapedTextForAnchors = shapedTextOrientations.vertical || defaultHorizontalShaping;
+            const shapedLabelLength = Math.max(
+                shapedTextForAnchors ? shapedTextForAnchors.right - shapedTextForAnchors.left : 0,
+                shapedIcon ? shapedIcon.right - shapedIcon.left : 0
             );
-            for (const anchor of anchors) {
+            const angleWindowSize = shapedTextForAnchors ? 3 / 5 * glyphSize * textMaxBoxScale : 0;
+            const p0 = subdividedLine[0];
+            const isLineContinued = p0.x === 0 || p0.x === EXTENT || p0.y === 0 || p0.y === EXTENT;
+            const wasmAnchors = wasmGetAnchors(
+                subdividedLine, symbolMinDistance, textMaxAngle,
+                shapedLabelLength, angleWindowSize, textMaxBoxScale,
+                bucket.overscaling, EXTENT, glyphSize, isLineContinued
+            );
+            for (const a of wasmAnchors) {
+                const anchor = new Anchor(a.x, a.y, a.angle, a.segment);
                 const shapedText = defaultHorizontalShaping;
                 if (!shapedText || !anchorIsTooClose(bucket, shapedText.text, textRepeatDistance, anchor)) {
                     addSymbolAtAnchor(subdividedLine, anchor);
@@ -377,22 +379,23 @@ function addFeature(bucket: SymbolBucket,
         for (const line of feature.geometry) {
             if (line.length > 1) {
                 const subdividedLine = subdivideVertexLine(line, granularity);
-                const anchor = getCenterAnchor(
-                    subdividedLine,
-                    textMaxAngle,
-                    shapedTextOrientations.vertical || defaultHorizontalShaping,
-                    shapedIcon,
-                    glyphSize,
-                    textMaxBoxScale);
-                if (anchor) {
-                    addSymbolAtAnchor(subdividedLine, anchor);
+                const shapedTextForAnchors = shapedTextOrientations.vertical || defaultHorizontalShaping;
+                const shapedLabelLength = Math.max(
+                    shapedTextForAnchors ? shapedTextForAnchors.right - shapedTextForAnchors.left : 0,
+                    shapedIcon ? shapedIcon.right - shapedIcon.left : 0
+                );
+                const angleWindowSize = shapedTextForAnchors ? 3 / 5 * glyphSize * textMaxBoxScale : 0;
+                const labelLength = shapedLabelLength * textMaxBoxScale;
+                const result = wasmGetCenterAnchor(subdividedLine, textMaxAngle, labelLength, angleWindowSize);
+                if (result) {
+                    addSymbolAtAnchor(subdividedLine, new Anchor(result.x, result.y, result.angle, result.segment));
                 }
             }
         }
     } else if (feature.type === 'Polygon') {
         for (const polygon of classifyRings(feature.geometry, 0)) {
             // 16 here represents 2 pixels
-            const poi = findPoleOfInaccessibility(polygon, 16);
+            const poi = wasmFindPoleOfInaccessibility(polygon, 16);
             const subdividedLine = subdivideVertexLine(polygon[0], granularity, true);
             addSymbolAtAnchor(subdividedLine, new Anchor(poi.x, poi.y, 0));
         }

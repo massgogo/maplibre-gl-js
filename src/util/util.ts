@@ -7,6 +7,7 @@ import {mat3, mat4, quat, vec2, vec3, type vec4} from 'gl-matrix';
 import {pixelsToTileUnits} from '../source/pixels_to_tile_units';
 import {type OverscaledTileID} from '../tile/tile_id';
 import type {Event} from './evented';
+import {wasmFindLineIntersection} from '../symbol/wasm_geometry';
 
 /**
  * Returns a new 64 bit float vec4 of zeroes.
@@ -624,24 +625,7 @@ export function isCounterClockwise(a: Point, b: Point, c: Point): boolean {
  * @returns the intersection point of the two lines or null if they are parallel
  */
 export function findLineIntersection(a1: Point, a2: Point, b1: Point, b2: Point): Point | null {
-    const aDeltaY = a2.y - a1.y;
-    const aDeltaX = a2.x - a1.x;
-    const bDeltaY = b2.y - b1.y;
-    const bDeltaX = b2.x - b1.x;
-
-    const denominator = (bDeltaY * aDeltaX) - (bDeltaX * aDeltaY);
-
-    if (denominator === 0) {
-        // Lines are parallel
-        return null;
-    }
-
-    const originDeltaY = a1.y - b1.y;
-    const originDeltaX = a1.x - b1.x;
-    const aInterpolation = (bDeltaX * originDeltaY - bDeltaY * originDeltaX) / denominator;
-
-    // Find intersection by projecting out from origin of first segment
-    return new Point(a1.x + (aInterpolation * aDeltaX), a1.y + (aInterpolation * aDeltaY));
+    return wasmFindLineIntersection(a1, a2, b1, b2);
 }
 
 /**

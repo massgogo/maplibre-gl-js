@@ -1,6 +1,6 @@
 import Point from '@mapbox/point-geometry';
 import {type VectorTileFeatureLike, type VectorTileLayerLike, type VectorTileLike, fromVectorTileJs} from '@maplibre/vt-pbf';
-import {clipGeometry} from '../symbol/clip_line';
+import {wasmClipGeometry} from '../symbol/wasm_geometry';
 import type {LoadVectorTileResult} from './vector_tile_worker_source';
 import type {CanonicalTileID} from '../tile/tile_id';
 
@@ -108,7 +108,7 @@ export function sliceVectorTileLayer(sourceLayer: VectorTileLayerLike, maxZoomTi
         }
         
         const buffer = 128;
-        geometry = clipGeometry(geometry, feature.type, -buffer, -buffer, extent + buffer, extent + buffer);
+        geometry = wasmClipGeometry(geometry, feature.type, -buffer, -buffer, extent + buffer, extent + buffer);
         if (geometry.length === 0) {
             continue;
         }

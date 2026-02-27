@@ -1,9 +1,8 @@
 import Point from '@mapbox/point-geometry';
-import {clipLine} from './clip_line';
+import {wasmClipLine} from './wasm_geometry';
 import {PathInterpolator} from './path_interpolator';
 
 import * as intersectionTests from '../util/intersection_tests';
-import {GridIndex} from './grid_index';
 import {mat4, vec4} from 'gl-matrix';
 import ONE_EM from '../symbol/one_em';
 
@@ -19,6 +18,7 @@ import {type OverscaledTileID, type UnwrappedTileID} from '../tile/tile_id';
 import {type PointProjection, type SymbolProjectionContext, getTileSkewVectors, pathSlicedToLongestUnoccluded, placeFirstAndLastGlyph, projectPathSpecialProjection, xyTransformMat4} from '../symbol/projection';
 import {clamp, getAABB} from '../util/util';
 import {Bounds} from '../geo/bounds';
+import {wasmProjectBatch, WasmCollisionGrid, type WasmGridKey} from './wasm_geometry';
 
 // When a symbol crosses the edge that causes it to be included in
 // collision detection, it will cause changes in the symbols around
@@ -41,12 +41,7 @@ export type PlacedBox = {
     occluded: boolean;
 };
 
-export type FeatureKey = {
-    bucketInstanceId: number;
-    featureIndex: number;
-    collisionGroupID: number;
-    overlapMode: OverlapMode;
-};
+export type FeatureKey = WasmGridKey;
 
 type ProjectedBox = {
     /**
@@ -68,8 +63,8 @@ type ProjectedBox = {
  * together even if they overlap.
  */
 export class CollisionIndex {
-    grid: GridIndex<FeatureKey>;
-    ignoredGrid: GridIndex<FeatureKey>;
+    grid: WasmCollisionGrid;
+    ignoredGrid: WasmCollisionGrid;
     transform: IReadonlyTransform;
     pitchFactor: number;
     screenRightBoundary: number;
@@ -83,9 +78,13 @@ export class CollisionIndex {
 
     constructor(
         transform: IReadonlyTransform,
-        grid = new GridIndex<FeatureKey>(transform.width + 2 * viewportPadding, transform.height + 2 * viewportPadding, 25),
-        ignoredGrid = new GridIndex<FeatureKey>(transform.width + 2 * viewportPadding, transform.height + 2 * viewportPadding, 25)
+        grid?: WasmCollisionGrid,
+        ignoredGrid?: WasmCollisionGrid,
     ) {
+        const w = transform.width + 2 * viewportPadding;
+        const h = transform.height + 2 * viewportPadding;
+        if (!grid) grid = new WasmCollisionGrid(w, h, 25);
+        if (!ignoredGrid) ignoredGrid = new WasmCollisionGrid(w, h, 25);
         this.transform = transform;
 
         this.grid = grid;
@@ -296,7 +295,7 @@ export class CollisionIndex {
                     // Not visible
                     segments = [];
                 } else {
-                    segments = clipLine([projectedPath], screenPlaneMin.x, screenPlaneMin.y, screenPlaneMax.x, screenPlaneMax.y);
+                    segments = wasmClipLine([projectedPath], screenPlaneMin.x, screenPlaneMin.y, screenPlaneMax.x, screenPlaneMax.y);
                 }
             }
 
@@ -619,7 +618,28 @@ export class CollisionIndex {
         let anyPointVisible = false;
 
         if (pitchWithMap) {
-            const projected = points.map(p => this.projectAndGetPerspectiveRatio(p.x, p.y, unwrappedTileID, getElevation, simpleProjectionMatrix));
+            let projected: Array<{x: number; y: number; perspectiveRatio: number; isOccluded: boolean; signedDistanceFromCamera: number}>;
+
+            if (simpleProjectionMatrix && !getElevation) {
+                // WASM fast path: batch all 8 points in one FFI call
+                const flat = new Float64Array(points.length * 2);
+                for (let i = 0; i < points.length; i++) {
+                    flat[i * 2] = points[i].x;
+                    flat[i * 2 + 1] = points[i].y;
+                }
+                // mat4 is Float32Array — widen to Float64Array for WASM
+                const mat64 = new Float64Array(simpleProjectionMatrix);
+                projected = wasmProjectBatch(
+                    mat64,
+                    flat,
+                    this.transform.width,
+                    this.transform.height,
+                    viewportPadding,
+                    this.transform.cameraToCenterDistance,
+                );
+            } else {
+                projected = points.map(p => this.projectAndGetPerspectiveRatio(p.x, p.y, unwrappedTileID, getElevation, simpleProjectionMatrix));
+            }
 
             // Is at least one of the projected points NOT behind the horizon?
             anyPointVisible = projected.some(p => !p.isOccluded);

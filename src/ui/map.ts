@@ -33,6 +33,7 @@ import {defaultLocale} from './default_locale';
 import {MercatorTransform} from '../geo/projection/mercator_transform';
 import {MercatorCameraHelper} from '../geo/projection/mercator_camera_helper';
 import {isAbortError} from '../util/abort_error';
+import {initWasmDecoder} from '../source/vector_tile_wasm';
 import {isFramebufferNotCompleteError} from '../util/framebuffer_error';
 import {coveringTiles, type CoveringTilesOptions, createCalculateTileZoomFunction} from '../geo/projection/covering_tiles';
 import {CanonicalTileID, type OverscaledTileID} from '../tile/tile_id';
@@ -849,6 +850,12 @@ export class Map extends Camera {
         this.on('dataabort', (event: MapDataEvent) => {
             this.fire(new Event('sourcedataabort', event));
         });
+
+        // Initialize WASM on the main thread (non-blocking).
+        // Worker thread init happens in worker.ts; this ensures main-thread
+        // code (collision_index, intersection_tests, style_layers) can also
+        // use WASM geometry functions.
+        initWasmDecoder(`${location.origin}/wasm`).catch(() => {});
     }
 
     /**
